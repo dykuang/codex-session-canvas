@@ -6,8 +6,10 @@ __pycache__/
 venv/
 .pytest_cache/
 
-# Local canvas snapshots and OS cruft
+# Local canvas snapshots and generated demo artifacts
 canvas-snapshot.html
+demo.html
+demo-preview.png
 *.local.*
 .DS_Store
 Thumbs.db
