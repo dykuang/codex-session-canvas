@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Codex Session Canvas</title><style>/* CSS_INJECTION */</style></head><body>
+<div class="shell">
+<aside class="sidebar">
+  <div class="brand"><div class="brandmark">◎</div><div><strong>SESSION CANVAS</strong><small>Codex workspace map</small></div></div>
+  <div class="side-label">WORKSPACES <span id="project-total"></span></div>
+  <div id="project-list" class="project-list"></div>
+  <div class="side-bottom"><div class="side-label">图例 / LEGEND</div>
+   <div class="legend"><span class="line solid"></span>Fork 分支</div>
+   <div class="legend"><span class="line dotted"></span>父子 / 侧边会话</div>
+   <div class="legend"><span class="line manual"></span>手动关联</div>
+   <div class="hint">每张卡片代表一个 Session，而不是聊天中的某一轮交互。</div>
+  </div>
+</aside>
+<main class="main">
+ <header class="toolbar">
+  <div class="breadcrumbs">PROJECT OVERVIEW <span>/</span> <strong id="current-project">全部项目</strong></div>
+  <div class="search"><span>⌕</span><input id="search" type="search" placeholder="搜索 session 名称、ID 或项目..." autocomplete="off" /><kbd>/</kbd></div>
+  <button class="tool-btn" id="refresh" title="刷新扫描">↻ <span>刷新</span></button>
+  <button class="tool-btn" id="fit" title="适应屏幕">⛶ <span>适应</span></button>
+  <button class="tool-btn" id="reset" title="重置手动排版">↺ <span>重排</span></button>
+ </header>
+ <div class="statsbar"><span class="status-dot"></span><span id="status">LOCAL · METADATA ONLY</span><span class="stat-sep">·</span><span id="stats"></span><div class="spacer"></div><span class="subtle">双击节点 → Codex 桌面会话</span></div>
+ <div class="board" id="board"><div class="viewport" id="viewport">
+   <svg id="edges" xmlns="http://www.w3.org/2000/svg"><defs>
+    <marker id="arrow-fork" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#99a6ff"></path></marker>
+    <marker id="arrow-parent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#65cbbb"></path></marker>
+    <marker id="arrow-manual" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#f2c078"></path></marker>
+   </defs><g id="edge-layer"></g></svg><div id="nodes"></div>
+  </div></div>
+ <div class="zoom"><button id="zoom-in" aria-label="放大">＋</button><span id="zoom-value">100%</span><button id="zoom-out" aria-label="缩小">－</button></div>
+ <div class="bottom-note" id="notice">拖动画布以平移 · 滚轮缩放 · 拖动卡片自由布局</div>
+ <section class="inspector" id="inspector" aria-label="session details"><div class="ins-head"><span>SESSION DETAILS</span><button id="close-inspector" aria-label="关闭">×</button></div>
+ <h3 id="detail-title"></h3><div id="detail-meta"></div>
+ <div class="ins-actions"><button class="primary" id="open-desktop">↗ 打开 Codex Desktop</button><button id="copy-resume">⎘ 复制 CLI 恢复命令</button><button id="link-parent">↗ 指定父节点</button><button id="unlink-parent">× 删除手动关联</button></div>
+ <p class="ins-foot">只存会话标题、ID 和关系。手动关联与卡片位置仅保存在本地浏览器，不写入 Codex 会话。</p>
+ </section>
+</main>
+</div>
+<script type="application/json" id="initial-data">__CANVAS_DATA__</script><script>/* JS_INJECTION */</script>
+</body></html>
