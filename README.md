@@ -10,7 +10,7 @@ Requires Python 3.10+, a browser, and the `zstandard` Python package to read com
 python3 -m pip install zstandard
 ```
 
-On Windows, use `python -m pip install zstandard`. Installing the package normally requires internet access; running the canvas does not. npm and an API key are not required. The demo and uncompressed files do not require `zstandard`, but scanning a compressed archive without it currently raises an error.
+On Windows, use `python -m pip install zstandard`. Installing the package normally requires internet access; running the canvas does not. npm and an API key are not required. The demo and uncompressed files do not require `zstandard`, but compressed archives are skipped with a visible warning when it is missing.
 
 ```bash
 # Generate a self-contained HTML snapshot and open it
@@ -51,7 +51,19 @@ python .\install_skill.py
 
 The installer copies `SKILL.md`, `canvas.py`, and `web/` into `~/.agents/skills/codex-session-canvas/` (or a destination supplied by `--destination`). It does not install Python packages. If the Skill is invoked with a different Python environment, install `zstandard` in that environment too.
 
-The installer will not overwrite an existing installation. To update an existing copy, run `python3 install_skill.py --force` (Windows: `python .\install_skill.py --force`); this replaces the existing Skill directory. Restart or reload Codex, then ask **“打开会话画布”** or invoke **`$codex-session-canvas`**. The Skill exports and opens a map focused on the active directory.
+The installer will not overwrite an existing installation. To update an existing copy, run `python3 install_skill.py --force` (Windows: `python .\install_skill.py --force`); this replaces the existing Skill directory. Restart or reload Codex, then ask **“打开会话画布”** or invoke **`$codex-session-canvas`**. See **Default view and session selection** below for how the current session is selected.
+
+## Default view and session selection
+
+The canvas uses `--session <UUID>` when supplied; otherwise it reads `CODEX_THREAD_ID`, then `CODEX_SESSION_ID`. When that session is found locally, its Git root or ChatGPT project directory determines the initial project view. For a session outside those recognised project directories, the initial view contains only that session. The sidebar still allows switching to other project groups or all projects.
+
+If the session ID is unavailable or not found, `--project` selects its recorded project group when one matches. With no matching group, the initial view is empty rather than showing all projects. A matching current session takes precedence over `--project`. To select a known session explicitly:
+
+```powershell
+python .\canvas.py --export --open --session <session-uuid>
+```
+
+Replace `<session-uuid>` with the actual UUID (without angle brackets). The sidebar groups non-Git sessions by recorded working directory, even though an unclassified current session initially appears alone.
 
 ## UI controls
 
@@ -61,7 +73,7 @@ The installer will not overwrite an existing installation. To update an existing
 - Select a card: view its ID, working directory, explicit fork/parent metadata and actions.
 - **Double-click:** open `codex://threads/<uuid>` in Codex Desktop, provided the protocol is installed and the thread exists there.
 - **CLI fallback:** select card and copy a `cd <cwd> && codex resume <uuid>` command. Paste into your terminal to resume.
-- **Manual relations:** select a child card → 指定父节点 → click a parent. Custom links are stored in browser `localStorage`, never in the Codex rollout.
+- **Manual relations:** select the destination session → 添加手动关系 → choose handoff, reference, or other → click the source session. Multiple manual links can coexist with automatic links. 删除此会话的手动关系 removes all manual links for that destination; automatic links remain. Links and positions are stored in browser `localStorage`, not in rollouts, and are separate per browser and origin. Use 全部项目 to connect or view cross-project links.
 - Refresh: fetches new metadata when launched with `--serve`; for a static `.html` snapshot, rerun the export command.
 
 ## Where metadata comes from
@@ -72,11 +84,12 @@ The installer will not overwrite an existing installation. To update an existing
 | `$CODEX_HOME/sessions/**/rollout-*.jsonl[.zst]` | first line `session_meta`: session UUID, cwd, creation timestamp, `forked_from_id`, `parent_thread_id`, `thread_source` |
 | `$CODEX_HOME/archived_sessions/**/*.jsonl[.zst]` | same metadata, marked archived |
 
-Projects are grouped by Git root if detectable; otherwise by recorded working folder (`cwd`). Unknown parentage is **not fabricated**: independent sessions are separate roots. If a session has no explicitly assigned name, its node displays `Session · <short UUID>`, not a preview from chat history.
+The sidebar groups sessions by Git root if detectable; otherwise by recorded working folder (`cwd`). Unknown parentage is **not fabricated**: independent sessions are separate roots. If a session has no explicitly assigned name, its node displays `Session · <short UUID>`, not a preview from chat history.
 
 ## Limitations
 
 - This MVP supports local JSONL and compressed `.jsonl.zst` rollouts, but not cloud-only conversations. Reading compressed archives requires the `zstandard` Python package.
+- Handoff and reference links are manual: conversation bodies are not read to discover them.
 - Fork and subagent parent fields are version-dependent, and some side chats may not expose a stable parent in the first metadata record; these remain independent roots until linked manually.
 - Opening via Codex Desktop URI depends on the `codex://` handler being installed and the session being locally accessible. It does not promise which desktop window Codex will reuse. It also cannot force an existing Codex CLI/VS Code tab to switch; `codex resume` starts/continues the session in a terminal you choose.
 - Static HTML exports contain session titles, IDs and local project paths. Keep exported snapshots private even though **no chat body** is included.

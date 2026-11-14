@@ -113,17 +113,25 @@ def meta_from_file(path: Path, names: dict[str, str], archived: bool = False) ->
         return None
 
 
-def build_data(codex_home: Path, focus: str = "", demo: bool = False) -> dict:
+def build_data(codex_home: Path, focus: str = "", demo: bool = False, session_id: str = "") -> dict:
     if demo:
         return demo_data(focus)
     names = read_name_index(codex_home)
     by_id: dict[str, dict] = {}
     skipped_compressed = 0
+    try:
+        import zstandard  # noqa: F401
+        has_zstandard = True
+    except ImportError:
+        has_zstandard = False
     for dirname, archived in (("sessions", False), ("archived_sessions", True)):
         base = codex_home / dirname
         if not base.exists():
             continue
         for path in list(base.rglob("*.jsonl")) + list(base.rglob("*.jsonl.zst")):
+            if path.name.endswith(".zst") and not has_zstandard:
+                skipped_compressed += 1
+                continue
             session = meta_from_file(path, names, archived)
             if session:
                 previous = by_id.get(session["id"])
@@ -135,9 +143,13 @@ def build_data(codex_home: Path, focus: str = "", demo: bool = False) -> dict:
         session.pop("_path", None)
     projects = make_projects(sessions)
     focused = project_root(focus) if focus else ""
-    # Without matching sessions, show all rather than an empty view.
-    if focused not in {x["id"] for x in projects}:
-        focused = "all"
+    current = by_id.get(canonical_id(session_id)) if session_id else None
+    if current:
+        folder = Path(current["project"])
+        is_project = (folder / ".git").exists() or ".chatgpt-projects" in folder.parts
+        focused = current["project"] if is_project else "session:" + current["id"]
+    elif not focused:
+        focused = "session:" + (canonical_id(session_id) or "unknown")
     return {
         "sessions": sessions,
         "projects": projects,
@@ -195,15 +207,15 @@ def render_html(data: dict, live: bool) -> str:
     return template.replace("/* CSS_INJECTION */", styles).replace("/* JS_INJECTION */", script).replace("__CANVAS_DATA__", init)
 
 
-def run_server(host: str, port: int, codex_home: Path, focus: str, demo: bool, should_open: bool):
+def run_server(host: str, port: int, codex_home: Path, focus: str, demo: bool, should_open: bool, session_id: str = ""):
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             route = urlsplit(self.path).path
             if route == "/":
-                data = render_html(build_data(codex_home, focus, demo), live=True).encode("utf-8")
+                data = render_html(build_data(codex_home, focus, demo, session_id), live=True).encode("utf-8")
                 mime = "text/html; charset=utf-8"
             elif route == "/api/data":
-                data = json.dumps(build_data(codex_home, focus, demo), ensure_ascii=False).encode("utf-8")
+                data = json.dumps(build_data(codex_home, focus, demo, session_id), ensure_ascii=False).encode("utf-8")
                 mime = "application/json; charset=utf-8"
             else:
                 self.send_error(404)
@@ -237,6 +249,7 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Visual Codex session graph (metadata only, no chat contents)")
     parser.add_argument("--codex-home", type=Path, default=Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")))
     parser.add_argument("--project", default="", help="Current project directory (initial focus)")
+    parser.add_argument("--session", default=os.environ.get("CODEX_THREAD_ID") or os.environ.get("CODEX_SESSION_ID", ""), help="Current session UUID")
     parser.add_argument("--demo", action="store_true", help="Use example data; no Codex files read")
     parser.add_argument("--serve", action="store_true", help="Run locally with live refresh")
     parser.add_argument("--export", action="store_true", help="Export single standalone HTML (default)")
@@ -246,17 +259,17 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     codex_home = args.codex_home.expanduser().resolve(strict=False)
     if args.serve:
-        run_server("127.0.0.1", args.port, codex_home, args.project, args.demo, args.open)
+        run_server("127.0.0.1", args.port, codex_home, args.project, args.demo, args.open, args.session)
         return 0
     output = args.output or (Path.home() / ".codex-session-canvas" / "index.html")
     output = output.expanduser().resolve(strict=False)
     output.parent.mkdir(parents=True, exist_ok=True)
-    data = build_data(codex_home, args.project, args.demo)
+    data = build_data(codex_home, args.project, args.demo, args.session)
     output.write_text(render_html(data, live=False), encoding="utf-8")
     print(f"Canvas exported: {output}")
     print(f"Sessions: {len(data['sessions'])} | Projects: {len(data['projects'])}")
     if data["skippedCompressed"]:
-        print(f"Warning: {data['skippedCompressed']} compressed JSONL archives were skipped (.zst not yet supported)")
+        print(f"Warning: {data['skippedCompressed']} compressed JSONL archives were skipped; install zstandard with python -m pip install zstandard")
     if args.open:
         webbrowser.open(output.as_uri())
     return 0
