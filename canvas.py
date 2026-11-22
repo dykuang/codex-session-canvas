@@ -202,9 +202,13 @@ def render_html(data: dict, live: bool) -> str:
     template = (WEB_DIR / "index.html").read_text(encoding="utf-8")
     styles = (WEB_DIR / "style.css").read_text(encoding="utf-8")
     script = (WEB_DIR / "app.js").read_text(encoding="utf-8")
+    project_script = (WEB_DIR / "project.js").read_text(encoding="utf-8")
+    project_styles = (WEB_DIR / "project.css").read_text(encoding="utf-8")
     init = json.dumps({**data, "live": live}, ensure_ascii=False, separators=(",", ":"))
     init = init.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
-    return template.replace("/* CSS_INJECTION */", styles).replace("/* JS_INJECTION */", script).replace("__CANVAS_DATA__", init)
+    return (template.replace("/* CSS_INJECTION */", styles + "\n" + project_styles)
+            .replace("/* JS_INJECTION */", script + "\n" + project_script)
+            .replace("__CANVAS_DATA__", init))
 
 
 def run_server(host: str, port: int, codex_home: Path, focus: str, demo: bool, should_open: bool, session_id: str = ""):
@@ -248,6 +252,7 @@ def run_server(host: str, port: int, codex_home: Path, focus: str, demo: bool, s
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Visual Codex session graph (metadata only, no chat contents)")
     parser.add_argument("--codex-home", type=Path, default=Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")))
+    parser.add_argument("--config", type=Path, default=Path.home() / ".codex-session-canvas" / "projects.json", help="Versioned logical-project registry")
     parser.add_argument("--project", default="", help="Current project directory (initial focus)")
     parser.add_argument("--session", default=os.environ.get("CODEX_THREAD_ID") or os.environ.get("CODEX_SESSION_ID", ""), help="Current session UUID")
     parser.add_argument("--demo", action="store_true", help="Use example data; no Codex files read")
@@ -259,12 +264,14 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     codex_home = args.codex_home.expanduser().resolve(strict=False)
     if args.serve:
-        run_server("127.0.0.1", args.port, codex_home, args.project, args.demo, args.open, args.session)
+        from project_server import run_server as run_project_server
+        run_project_server("127.0.0.1", args.port, codex_home, args.project, args.demo, args.open, args.session, args.config)
         return 0
     output = args.output or (Path.home() / ".codex-session-canvas" / "index.html")
     output = output.expanduser().resolve(strict=False)
     output.parent.mkdir(parents=True, exist_ok=True)
-    data = build_data(codex_home, args.project, args.demo, args.session)
+    from project_bridge import project_data
+    data = project_data(build_data(codex_home, args.project, args.demo, args.session), args.config, args.project, args.session, args.demo)
     output.write_text(render_html(data, live=False), encoding="utf-8")
     print(f"Canvas exported: {output}")
     print(f"Sessions: {len(data['sessions'])} | Projects: {len(data['projects'])}")
