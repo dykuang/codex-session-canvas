@@ -1,0 +1,28 @@
+name: v0.2 checks
+on:
+  push:
+    branches: [v0.2]
+  pull_request:
+    branches: [main]
+jobs:
+  tests:
+    name: Python ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Python unit and integration checks
+        run: python -m unittest discover -s tests -v
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Browser script syntax
+        run: |
+          node --check web/app.js
+          node --check web/project.js
