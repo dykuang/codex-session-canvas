@@ -1,4 +1,4 @@
-# Codex Session Canvas (MVP)
+# Codex Session Canvas (v0.2 development)
 
 A local, metadata-only visual navigator for Codex sessions, forks and child agents. It reads **only the first `session_meta` line** of each `.jsonl` or compressed `.jsonl.zst` rollout, plus the session-name index. It never parses conversation turns, assistant text or prompts.
 
@@ -31,7 +31,7 @@ python .\canvas.py --export --open --project (Get-Location).Path
 
 The default HTML snapshot path is `~/.codex-session-canvas/index.html`. You can override it with `--output path/to/canvas.html`. For a nonstandard Codex data folder, add `--codex-home path/to/.codex` (or set the `CODEX_HOME` environment variable).
 
-The `--serve` mode binds **only to 127.0.0.1**, default port 8765. It has a metadata-only GET endpoint `/api/data`; it never launches commands or modifies Codex files. Stop it with Ctrl+C. Use `--port 0` for an OS-assigned port.
+The `--serve` mode binds **only to 127.0.0.1**, default port 8765. It has a metadata-only GET endpoint `/api/data`; v0.2 also supports a CSRF-protected, same-origin POST `/api/projects` endpoint that writes only the validated project registry. It never launches commands or modifies Codex session files. Stop it with Ctrl+C. Use `--port 0` for an OS-assigned port.
 
 ## Install as a Codex Skill
 
@@ -49,7 +49,7 @@ python -m pip install zstandard
 python .\install_skill.py
 ```
 
-The installer copies `SKILL.md`, `canvas.py`, and `web/` into `~/.agents/skills/codex-session-canvas/` (or a destination supplied by `--destination`). It does not install Python packages. If the Skill is invoked with a different Python environment, install `zstandard` in that environment too.
+The installer copies `SKILL.md`, `canvas.py`, `project_registry.py`, `project_bridge.py`, `project_server.py` and `web/` into `~/.agents/skills/codex-session-canvas/` (or a destination supplied by `--destination`). It does not install Python packages. If the Skill is invoked with a different Python environment, install `zstandard` in that environment too.
 
 The installer will not overwrite an existing installation. To update an existing copy, run `python3 install_skill.py --force` (Windows: `python .\install_skill.py --force`); this replaces the existing Skill directory. Restart or reload Codex, then ask **“打开会话画布”** or invoke **`$codex-session-canvas`**. See **Default view and session selection** below for how the current session is selected.
 
@@ -84,7 +84,42 @@ Replace `<session-uuid>` with the actual UUID (without angle brackets). The side
 | `$CODEX_HOME/sessions/**/rollout-*.jsonl[.zst]` | first line `session_meta`: session UUID, cwd, creation timestamp, `forked_from_id`, `parent_thread_id`, `thread_source` |
 | `$CODEX_HOME/archived_sessions/**/*.jsonl[.zst]` | same metadata, marked archived |
 
-The sidebar groups sessions by Git root if detectable; otherwise by recorded working folder (`cwd`). Unknown parentage is **not fabricated**: independent sessions are separate roots. If a session has no explicitly assigned name, its node displays `Session · <short UUID>`, not a preview from chat history.
+Without an explicit logical-project registry, the sidebar groups sessions by Git root if detectable; otherwise by recorded working folder (`cwd`). Unknown parentage is **not fabricated**: independent sessions are separate roots. If a session has no explicitly assigned name, its node displays `Session · <short UUID>`, not a preview from chat history.
+
+
+## v0.2 — Multi-folder logical projects and Project DAG
+
+In local server mode (`python canvas.py --serve --open`), click **Project Graph** in the top toolbar. Create a new project, add one absolute working directory per line, and click **保存项目配置**. Select a project and press **连线 → 选择后继项目**, then click the successor node to connect predecessor → successor. Multiple predecessors can target the same project (A → C and B → C); cycles, duplicate folder ownership, and invalid IDs are rejected by the server. Double-click a project to switch to its aggregated Session Graph. Double-click a Session to open Codex Desktop as before. Project and Session relations are distinct data layers.
+
+The default registry is `~/.codex-session-canvas/projects.json`. Override with `--config path/to/projects.json`. A minimal Windows example is:
+
+```json
+{
+  "version": 1,
+  "projects": [
+    {"id": "A", "name": "Project A", "folders": ["C:/Research/A"]},
+    {"id": "B", "name": "Project B", "folders": ["C:/Research/B"]},
+    {"id": "C", "name": "Project C", "folders": ["D:/Research/C", "E:/Experiments/C"]}
+  ],
+  "relationships": [
+    {"from": "A", "to": "C", "type": "successor"},
+    {"from": "B", "to": "C", "type": "successor"}
+  ]
+}
+```
+
+Projects have stable user-defined IDs, independent of folder paths. For matching, Windows drive and UNC paths are case-insensitive; POSIX paths retain case sensitivity. When folder mappings are nested, the longest valid directory-prefix wins. An unmatched session remains in the automatically discovered Git-root/cwd grouping. Empty configured projects remain visible. One Session has one primary logical project but many sessions may share a project. The config persists independently of browser-local Session annotations and node positions. A `projects.json.bak` backup is retained on subsequent saves.
+
+A standalone `--export` HTML snapshot is **read-only** for project settings; use **导出 JSON** and import it by placing the validated JSON at the `--config` path (or use the local server editor). Keep project paths and session names private. The server binds only to `127.0.0.1`; write requests require the exact loopback Origin, JSON content type and a per-process CSRF token. Neither the editor nor project relation edges read chat bodies. The v0.3 Context Node Editor is a separate roadmap item.
+
+**Windows development verification** (PowerShell):
+
+```powershell
+python .\\canvas.py --serve --open --project (Get-Location).Path
+python -m unittest discover -s tests -v
+```
+
+For backward compatibility, launch with no registry and the original Session Graph works. To revert project grouping, back up and remove `projects.json`; existing Codex session files are never modified.
 
 ## Limitations
 
