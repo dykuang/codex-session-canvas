@@ -208,7 +208,7 @@ def render_html(data: dict, live: bool) -> str:
     init = init.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
     return (template.replace("/* CSS_INJECTION */", styles + "\n" + project_styles)
             .replace("/* JS_INJECTION */", script + "\n" + project_script)
-            .replace("__CANVAS_DATA__", init)
+            .replace("__CANVAS_DATA__", init))
 
 
 def run_server(host: str, port: int, codex_home: Path, focus: str, demo: bool, should_open: bool, session_id: str = ""):
