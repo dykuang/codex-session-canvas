@@ -127,7 +127,12 @@ document.getElementById('zoom-in').addEventListener('click',()=>zoom(camera.scal
 document.getElementById('zoom-out').addEventListener('click',()=>zoom(camera.scale/1.2));
 document.getElementById('fit').addEventListener('click',fit);
 document.getElementById('reset').addEventListener('click',()=>{layoutPositions={};saveStored('positions',{});render();fit();showToast('布局已重置');});
-els.refresh.addEventListener('click',async()=>{if(!data.live){showToast('静态导出文件：请重新运行 canvas.py 生成最新快照');return;}try{const r=await fetch('/api/data',{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);const latest=await r.json();data={...latest,live:true};drawSidebar();render();showToast('已刷新最新会话元数据');}catch{showToast('刷新失败：本地服务可能已停止');}});
+els.refresh.addEventListener('click',async()=>{if(!data.live){showToast('静态导出文件：请重新运行 canvas.py 生成最新快照');return;}try{const r=await fetch('/api/data',{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);const latest=await r.json();data={...latest,live:true,csrfToken:data.csrfToken};drawSidebar();render();showToast('已刷新最新会话元数据');}catch{showToast('刷新失败：本地服务可能已停止');}});
 window.addEventListener('resize',()=>{if(document.hasFocus())applyCamera();});
+window.codexCanvas = {
+  getData: () => data,
+  selectProject,
+  setData: next => { data=next; if(focus!=='all'&&!data.projects.some(p=>p.id===focus)&&!focus.startsWith('session:'))focus='all'; drawSidebar();render();fit(); }
+};
 drawSidebar();render();fit();
 })();
