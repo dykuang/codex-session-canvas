@@ -64,9 +64,15 @@ previewBtn.onclick=async()=>{if(dirty&&!(await save()))return;if(!confirm("明�
  try{const r=await api("/api/context/preview",{graphId:graph.id,consent:true});approval=r.approvalToken;packagePreview=r.package;
  editor.replaceChildren(make("h3","","CONTEXT PACKAGE · REVIEW"),make("p","","来源："+r.package.sources.length+" · 估算 "+r.package.estimatedTokens+" tokens"),
  make("p","ctx-small","SHA256: "+r.package.promptHash));
- const area=make("textarea","ctx-input");area.rows=18;area.value=r.package.prompt;area.readOnly=true;editor.append(area);
+ const area=make("textarea","ctx-input");area.rows=18;area.value=r.package.prompt;editor.append(area);
+ const redact=make("button","ctx-btn","应用脱敏修改（仅当前预览）");
+ redact.onclick=async()=>{try{const updated=await api("/api/context/redact",{approvalToken:approval,editedPrompt:area.value});
+ packagePreview=updated.package;approval=updated.approvalToken;
+ inform("脱敏修改已应用 · SHA256 "+packagePreview.promptHash+"，本次预览需重新确认创建");
+ }catch(e){inform("脱敏修改未通过校验："+e.message,true);}};
+ editor.append(redact);
  const copy=make("button","ctx-btn","复制预览内容（手动创建备用方案）");
- copy.onclick=async()=>{try{await navigator.clipboard.writeText(r.package.prompt);inform("已复制预览内容；可手动粘贴到新 Codex Session");}
+ copy.onclick=async()=>{try{await navigator.clipboard.writeText(area.value);inform("已复制当前预览内容；可手动粘贴到新 Codex Session");}
  catch{area.focus();area.select();inform("请按 Ctrl+C 复制选中的内容");}};
  editor.append(copy);
  editor.append(make("p","ctx-small","请检查敏感内容。修改源节点后重新预览；执行之前还需再次确认。"));
