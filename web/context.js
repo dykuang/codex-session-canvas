@@ -56,7 +56,7 @@ controls.append(saveBtn,previewBtn,runBtn,historyBtn,backBtn);
 historyBtn.onclick=async()=>{try{const r=await fetch("/api/context/runs");const result=await r.json();if(!r.ok)throw Error(result.error);
  editor.replaceChildren(make("h3","","CONTEXT RUN HISTORY"));for(const run of result.runs){const row=make("div","ctx-edge");
  row.append(make("span","",run.status+" · "+(run.threadId||"pending")+" · "+run.graphId));
- const btn=make("button","ctx-btn","复制 ID");btn.onclick=()=>navigator.clipboard.writeText(run.threadId||run.id);row.append(btn);editor.append(row);}
+ const btn=make("button","ctx-btn","查看");btn.onclick=()=>showRunActions(run);row.append(btn);editor.append(row);}
  if(!result.runs.length)editor.append(make("p","","没有历史执行记录"));}catch(e){inform("记录读取失败："+e.message,true);}};backBtn.onclick=()=>show(false);
 async function save(){try{const r=await api("/api/context/graph",{graph});graph=r.graph;dirty=false;approval=null;await refreshGraphList();inform("已保存 Context Graph · revision "+graph.revision);return true;}catch(e){inform("保存失败："+e.message,true);return false;}}
 saveBtn.onclick=save;
@@ -73,8 +73,25 @@ runBtn.onclick=async()=>{if(!approval||!packagePreview)return inform("请先预�
  try{const r=await api("/api/context/execute",{approvalToken:approval,promptHash:packagePreview.promptHash,approved:true});approval=null;
  inform("正在创建 Codex Session · run "+r.run.id);watch(r.run.id);
  }catch(e){approval=null;inform("创建失败："+e.message,true);}};
+function showRunActions(run){
+ if(!run.threadId)return;
+ const actions=make("div","ctx-run-actions");
+ actions.append(make("strong","","Codex Session · "+run.threadId));
+ const openBtn=make("button","ctx-btn","↗ 打开 Codex Desktop");
+ openBtn.onclick=()=>{if(!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(run.threadId))
+ return inform("此运行时的 threadId 不是桌面深链支持的 UUID",true);
+ window.location.href="codex://threads/"+run.threadId;};
+ const copyBtn=make("button","ctx-btn","复制 CLI 恢复命令");
+ copyBtn.onclick=async()=>{
+ const cwd=run.cwd||packagePreview?.cwd||"";
+ const win=navigator.platform.toLowerCase().includes("win");
+ const command=win?"Set-Location -LiteralPath '"+cwd.replaceAll("'","''")+"'; codex resume "+run.threadId:
+ "cd '"+cwd.replaceAll("'","'\\''")+"' && codex resume "+run.threadId;
+ try{await navigator.clipboard.writeText(command);inform("已复制 CLI 恢复命令");}catch{inform("剪贴板不可用，请手动使用 codex resume "+run.threadId,true);}};
+ actions.append(openBtn,copyBtn);editor.replaceChildren(make("h3","","SESSION CREATED / STATUS"),actions);
+}
 async function watch(id){for(let i=0;i<90&&open;i++){await new Promise(r=>setTimeout(r,2000));try{const r=await fetch("/api/context/run?id="+encodeURIComponent(id));const result=await r.json();if(!r.ok)throw Error(result.error);
- const run=result.run;inform(run.status+" · "+(run.threadId||"尚未返回 Session ID")+(run.error?" · "+run.error:""),run.status==="error");if(["error","completed"].includes(run.status))return;
+ const run=result.run;inform(run.status+" · "+(run.threadId||"尚未返回 Session ID")+(run.error?" · "+run.error:""),run.status==="error");if(run.threadId)showRunActions(run);if(["error","completed"].includes(run.status))return;
  }catch(e){inform("状态查询失败："+e.message,true);return;}}inform("状态轮询已停止，请在 Codex 检查实际结果，勿直接重复创建",true);}
 function wire(from,to){const a=node(from),b=node(to);if(!a||!b||from===to||!ports[a.type][1]||!ports[b.type][0])throw Error("无效端口");
  if((a.type==="session_source")!==(b.type==="selector"))throw Error("Session Source 只能连接 Selector；Selector 只能接收 Session Source");
