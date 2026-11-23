@@ -78,6 +78,15 @@ try {
     await page.getByRole("button",{name:/Context Graph/}).click();
     await page.waitForTimeout(400);
     assert.equal(await page.locator(".ctx-node").count(),4);
+    await page.locator(".ctx-node").nth(1).click();
+    await page.getByRole("button",{name:/明确授权读取此 Session/}).click();
+    await page.waitForTimeout(250);
+    assert.equal(await page.locator(".ctx-segment").count(),2);
+    const filter=page.locator("input[placeholder='仅搜索当前已授权读取的片段']");
+    await filter.fill("PRIVATE");
+    assert.equal(await page.locator(".ctx-segment:visible").count(),1);
+    await filter.fill("NOT-A-MATCH");
+    assert.equal(await page.locator(".ctx-segment:visible").count(),0);
     await page.getByRole("button",{name:"预览",exact:true}).click();
     await page.waitForTimeout(500);
     const displayed=await page.locator(".ctx-editor textarea").inputValue();
