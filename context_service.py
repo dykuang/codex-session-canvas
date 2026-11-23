@@ -43,6 +43,9 @@ class ContextService:
             rid = params.get("id", [""])[0]
             link = self.links.get(rid)
             return {"link": link, "snapshot": self.links.get_snapshot(link["latestSnapshot"])}
+        if path == "/api/context/snapshot":
+            sid = params.get("id", [""])[0]
+            return {"snapshot": self.links.get_snapshot(sid)}
         if path == "/api/context/runs":
             if not self.manifests.is_dir():
                 return {"runs": []}
@@ -124,6 +127,25 @@ class ContextService:
                 package["redactionsApplied"] = True
                 package["estimatedTokens"] = (len(prompt) + 3) // 4
                 return {"package": dict(package), "approvalToken": token}
+        if path == "/api/context/link-existing":
+            # Explicit v0.4 migration, never silently link unrelated records.
+            rid = valid_uuid(body.get("runId"))
+            saved = self.manifests / (rid + ".json")
+            with self.lock:
+                if not saved.is_file() or saved.is_symlink() or saved.stat().st_size > 128000:
+                    raise GraphError("Completed local run metadata is unavailable")
+                record = json.loads(saved.read_text(encoding="utf-8"))
+                if record.get("id") != rid or record.get("status") != "completed":
+                    raise GraphError("Only completed local runs can be linked")
+                target = valid_uuid(record.get("threadId"))
+                if record.get("linkedRunId") and record.get("linkedRunId") != rid:
+                    raise GraphError("A linked refresh job cannot be made into a root link")
+                if not record.get("graphId") or not record.get("sourceRevisions") or not record.get("segments"):
+                    raise GraphError("Run lacks reproducible source metadata")
+                if body.get("approved") is not True or body.get("threadId") != target:
+                    raise GraphError("Explicit confirmation of the existing thread is required")
+                link = self.links.link(record, rid, target)
+                return {"link": link}
         if path.startswith("/api/context/refresh-"):
             return self._refresh_post(path, body)
         if path == "/api/context/execute":
