@@ -136,8 +136,9 @@ def refresh_worker(service, job_id, rid, link, pending):
                 delivered_hash=pending["promptHash"])
             service.links.advance(rid, pending["linkRevision"],
                                   snapshot["snapshotId"])
-            service.runs[job_id]["status"] = "completed"
             service.runs[job_id]["snapshotId"] = snapshot["snapshotId"]
+            service.runs[job_id]["status"] = "completed"
+            service._write_manifest(job_id)
     except Exception as exc:
         with service.lock:
             service.runs[job_id]["status"] = "error"
@@ -145,6 +146,7 @@ def refresh_worker(service, job_id, rid, link, pending):
                 str(exc) if isinstance(exc, (GraphError, CodexRuntimeError))
                 else "Linked Context adapter failed (" + type(exc).__name__ + ")"
             )[:500]
+            service._write_manifest(job_id)
     finally:
         with service.lock:
             service.active_links.discard(rid)
