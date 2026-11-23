@@ -19,4 +19,4 @@ for item in ['SKILL.md','canvas.py','project_registry.py','project_bridge.py','p
     shutil.copy2(root/item,dest/item)
 shutil.copytree(root/'web',dest/'web')
 print(f'Codex skill installed: {dest}')
-print('In Codex, invoke $codex-session-canvas or ask: 打开会话画布')
+print('In Codex, invoke $codex-session-canvas (session canvas skill)')
