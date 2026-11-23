@@ -140,6 +140,9 @@ class ContextService:
             run = {"id": rid, **sanitize_package(package), "status": "starting",
                    "threadId": None, "createdAt": time.time()}
             with self.lock: self.runs[rid] = run
+            # Persist "starting" before execution so restart/crash cannot erase
+            # the fact a launch was attempted. No prompt text is written.
+            self._write_manifest(rid)
             threading.Thread(target=self._worker, args=(rid, package), daemon=True).start()
             return {"run": dict(run)}
         raise GraphError("Unknown Context Graph write endpoint")
