@@ -196,3 +196,70 @@ A VS Code Webview panel + command palette integration, persistent external graph
 ## License
 
 [MIT](LICENSE) © 2026 Dongyang Kuang
+
+
+## v0.5 — Linked Context, immutable snapshots and provenance
+
+After a successful v0.4 **Create Session** execution, the tool attempts to
+persist a **linked target** for that exact Codex thread. Linking is metadata-only
+and happens only when the initial run completed successfully; if Codex returned a
+non-UUID thread identifier, creation still succeeds but linking is not available.
+
+1. Launch the local editable server with `python canvas.py --serve --open`.
+2. Open **Context Graph → Linked Context ↻**, choose a completed linked run.
+3. Click **检查更新** and explicitly approve reading the source conversations.
+   This action compares current selected source revisions and segment hashes
+   against the last immutable snapshot. The canvas never silently reads full
+   histories on load, idle, project refresh or timer.
+4. If changed, review the proposed follow-up prompt and provenance diff;
+   optionally redact the historical reference data and apply the edits.
+5. Explicitly approve sending the updated reference data to the **existing**
+   target Codex thread. No new thread is created, and the *original creation
+   task is not replayed*. The message asks Codex to wait for the next task.
+   If your installed Codex does not support App Server thread resume, use the
+   manual preview/copy workflow and resume the thread yourself.
+
+### Persisted artifacts and privacy
+
+- `context-links/<original-run-uuid>.json` — existing thread ID, graph ID,
+  logical project/cwd, known source IDs, current immutable snapshot ID and
+  history. The linked target is **not** the Source Session.
+- `context-links/snapshots/<sha256>-<run-uuid>.json` — selected source IDs,
+  segment IDs, content fingerprints, graph/source revision fingerprints and
+  source-context prompt digest and the separately recorded **actually delivered** prompt digest (which may differ after redaction). No source excerpts, generated prompts, task body or notes.
+- `context-runs/<job-uuid>.json` — metadata-only execution attempt/status,
+  linked run ID, thread ID and snapshot reference.
+
+All source reads require an explicit operation and fresh approval is single-use.
+Approvals expire after 15 minutes and execution rechecks current source and
+graph revisions. If the thread cannot be resumed, the operation fails rather
+than silently creating a replacement thread.
+
+These SHA-256 snapshots provide **change detection and provenance**, not a
+reconstruction of deleted historical bodies. Content fingerprints can reveal
+whether two selected passages are equal; protect the local configuration
+directory accordingly. The last successful snapshot is retained, and failed
+updates are not recorded as successfully applied.
+
+### API (local server only)
+
+- `GET /api/context/links` — list metadata-only linked targets.
+- `GET /api/context/snapshot?id=<sha256>-<run-uuid>` — one immutable provenance snapshot.
+- `POST /api/context/link-existing` — explicit opt-in backfill for a completed
+  v0.4 run: `{"runId":"<run-uuid>","threadId":"<original-thread-uuid>","approved":true}`.
+- `GET /api/context/link?id=<run-uuid>` — link and latest snapshot.
+- `POST /api/context/refresh-preview` — `{"runId":"<uuid>","consent":true}`.
+- `POST /api/context/refresh-redact` — approval token + edited prompt.
+- `POST /api/context/refresh-apply` — approval token + hash + `"approved":true`.
+- `GET /api/context/run?id=<job-uuid>` — eventual result/status.
+
+As for all write endpoints, the server requires localhost Host, matching Origin
+and per-server `X-Canvas-CSRF` token. There is no automatic refresh scheduler.
+
+### Validation boundary
+
+CI uses synthetic local session fixtures and a mocked Codex App Server on
+Windows and Linux. **A real authenticated Windows Codex Desktop/CLI live run,
+existing-thread resume and opening behavior still require testing on the
+target machine.** Mock success is not proof that the installed Codex runtime
+accepts `thread/resume` for an arbitrary local desktop thread.

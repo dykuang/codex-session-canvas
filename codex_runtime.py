@@ -33,7 +33,7 @@ def _valid_id(value):
         raise CodexRuntimeError("Unexpected thread ID from Codex")
 
 
-def launch(prompt, cwd, *, timeout=180, command=None, on_started=None):
+def launch(prompt, cwd, *, timeout=180, command=None, on_started=None, existing_thread_id=None):
     """Return (thread id, status) after turn completed. Fail closed on protocol errors.
 
     Can be injected a fake app-server command in tests. stdout is read by a
@@ -93,10 +93,16 @@ def launch(prompt, cwd, *, timeout=180, command=None, on_started=None):
             "clientInfo": {"name": "codex_session_canvas", "title": "Codex Session Canvas", "version": "0.4.0"}}})
         receive(lambda e: e.get("id") == 1)
         send({"method": "initialized", "params": {}})
-        send({"id": 2, "method": "thread/start", "params": {
-            "cwd": str(folder), "sandbox": "readOnly", "approvalPolicy": "never"}})
+        if existing_thread_id is None:
+            send({"id": 2, "method": "thread/start", "params": {
+                "cwd": str(folder), "sandbox": "readOnly", "approvalPolicy": "never"}})
+        else:
+            expected_id = _valid_id(existing_thread_id)
+            send({"id": 2, "method": "thread/resume", "params": {"threadId": expected_id}})
         msg = receive(lambda e: e.get("id") == 2)
         thread_id = _valid_id((msg.get("result") or {}).get("thread", {}).get("id"))
+        if existing_thread_id is not None and thread_id != expected_id:
+            raise CodexRuntimeError("Resumed thread does not match linked session")
         if on_started: on_started(thread_id, "thread_created")
         send({"id": 3, "method": "turn/start", "params": {
             "threadId": thread_id, "input": [{"type": "text", "text": prompt}]}})
@@ -124,3 +130,9 @@ def launch(prompt, cwd, *, timeout=180, command=None, on_started=None):
         finally:
             if proc.stdin: proc.stdin.close()
             if proc.stdout: proc.stdout.close()
+
+
+def continue_thread(prompt, cwd, thread_id, *, timeout=180, command=None, on_started=None):
+    """Continue an existing linked Codex thread; never starts another thread."""
+    return launch(prompt, cwd, timeout=timeout, command=command,
+                  on_started=on_started, existing_thread_id=_valid_id(thread_id))

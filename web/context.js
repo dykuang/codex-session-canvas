@@ -59,7 +59,89 @@ for(const [kind,label] of Object.entries(labels)){const btn=make("button","ctx-b
  merge:[890,150+count*145],new_session:[1170,150+count*145]}[kind];
  graph.nodes.push({id,type:kind,x:xy[0],y:xy[1],config:defaults[kind]()});changed();selected=id;render();};}
 const saveBtn=make("button","ctx-btn primary","保存"),previewBtn=make("button","ctx-btn","预览"),runBtn=make("button","ctx-btn","创建 Session"),historyBtn=make("button","ctx-btn","运行记录"),backBtn=make("button","ctx-btn","返回");
-controls.append(saveBtn,previewBtn,runBtn,historyBtn,backBtn);
+const linkedBtn=make("button","ctx-btn","Linked Context ↻");
+controls.append(saveBtn,previewBtn,runBtn,historyBtn,linkedBtn,backBtn);
+linkedBtn.onclick=async()=>{
+ try{
+  const r=await fetch("/api/context/links");const data=await r.json();if(!r.ok)throw Error(data.error);
+  editor.replaceChildren(make("h3","","LINKED CONTEXTS · 已关联会话"));
+  editor.append(make("p","ctx-small","仅手动检查和更新来源；不会后台自动读取或执行旧任务。"));
+  for(const link of data.links){
+   const row=make("div","ctx-edge");
+   row.append(make("span","",link.graphId+" · "+link.threadId.slice(0,8)+" · snapshots "+link.history.length));
+   const view=make("button","ctx-btn","检查更新");view.onclick=()=>linkedPreview(link);
+   const history=make("button","ctx-btn","快照历史");
+   history.onclick=async()=>{
+    try{
+     editor.replaceChildren(make("h3","","PROVENANCE HISTORY · "+link.threadId.slice(0,8)));
+     for(const id of link.history){
+      const res=await fetch("/api/context/snapshot?id="+encodeURIComponent(id));
+      const entry=await res.json();if(!res.ok)throw Error(entry.error);
+      const block=make("pre","ctx-small");
+      block.textContent=JSON.stringify({
+       snapshotId:id,sourceRevisions:entry.snapshot.sourceRevisions,
+       segments:entry.snapshot.segments,contextPromptHash:entry.snapshot.promptHash,
+       deliveredPromptHash:entry.snapshot.deliveredPromptHash
+      },null,2);
+      editor.append(block);
+     }
+    }catch(e){inform("无法载入快照历史："+e.message,true);}
+   };
+   row.append(view,history);editor.append(row);
+  }
+  if(!data.links.length)editor.append(make("p","","暂无已完成且成功绑定的 Context Session。"));
+  const migrate=make("button","ctx-btn","关联旧 v0.4 成功运行");
+  migrate.onclick=async()=>{
+   const runId=prompt("输入已完成的 v0.4 Run UUID");
+   if(!runId)return;
+   try{
+    const response=await fetch("/api/context/run?id="+encodeURIComponent(runId));
+    const info=await response.json();if(!response.ok)throw Error(info.error);
+    const run=info.run;
+    if(run.status!=="completed"||!run.threadId)throw Error("必须是有 Thread ID 的成功运行记录");
+    if(!confirm("确认将原 Run "+runId+" 关联到已存在 Session "+run.threadId+"？不会读取历史正文或执行新任务。"))return;
+    await api("/api/context/link-existing",{runId,threadId:run.threadId,approved:true});
+    inform("旧运行已关联，重新打开 Linked Context 查看");
+   }catch(e){inform("旧运行关联失败："+e.message,true);}
+  };
+  editor.append(migrate);
+ }catch(e){inform("Linked Context 读取失败："+e.message,true);}
+};
+async function linkedPreview(link){
+ if(!confirm("明确授权重新读取来源 Session 并检查相对上次快照的变化？"))return;
+ try{
+  const data=await api("/api/context/refresh-preview",{runId:link.runId,consent:true});
+  editor.replaceChildren(make("h3","","LINKED CONTEXT · 更新预览"),
+    make("p","ctx-small","目标 Session："+link.threadId),
+    make("p","ctx-small","对比结果："+(data.unchanged?"来源未变化":"检测到来源或 Graph 变化")));
+  const diff=make("pre","ctx-small");
+  diff.textContent=JSON.stringify(data.diff,null,2);editor.append(diff);
+  if(data.unchanged){inform("已检查：上下文快照保持不变，无需更新");return;}
+  const textarea=make("textarea","ctx-input");textarea.rows=12;textarea.value=data.prompt;editor.append(textarea);
+  let token=data.approvalToken,hash=data.promptHash,modified=false;
+  const approvalStatus=make("p","ctx-small","仅预览：还未向 Codex 发送任何内容。");editor.append(approvalStatus);
+  const redact=make("button","ctx-btn","应用脱敏编辑");
+  const apply=make("button","ctx-btn primary","批准更新现有 Session");
+  textarea.oninput=()=>{modified=true;approvalStatus.textContent="预览已修改，请先应用脱敏编辑";};
+  redact.onclick=async()=>{try{
+   const result=await api("/api/context/refresh-redact",{approvalToken:token,editedPrompt:textarea.value});
+   hash=result.promptHash;modified=false;approvalStatus.textContent="编辑已暂存，需再次确认执行";
+   inform("脱敏修改已确认（尚未发送）");
+  }catch(e){inform("脱敏失败："+e.message,true);}};
+  apply.onclick=async()=>{
+   if(modified)return inform("请先应用脱敏修改，再批准执行",true);
+   if(!confirm("确定向现有 Session "+link.threadId+" 发送这次更新？不会新建 Session。"))return;
+   try{
+    const result=await api("/api/context/refresh-apply",{
+      approvalToken:token,promptHash:hash,approved:true});
+    token=null;apply.disabled=true;inform("已请求在原 Session 中更新 · "+result.run.id);
+    watch(result.run.id);
+   }catch(e){token=null;inform("更新失败："+e.message,true);}
+  };
+  editor.append(redact,apply);
+ }catch(e){inform("Linked Context 检查失败："+e.message,true);}
+}
+
 historyBtn.onclick=async()=>{try{const r=await fetch("/api/context/runs");const result=await r.json();if(!r.ok)throw Error(result.error);
  editor.replaceChildren(make("h3","","CONTEXT RUN HISTORY"));for(const run of result.runs){const row=make("div","ctx-edge");
  row.append(make("span","",run.status+" · "+(run.threadId||"pending")+" · "+run.graphId));

@@ -15,13 +15,17 @@ from pathlib import Path
 from context_graph import GraphError, GraphStore
 from context_reader import ContextReadError, segments
 from context_engine import evaluate, sanitize_package
-from codex_runtime import CodexRuntimeError, available, launch
+from codex_runtime import CodexRuntimeError, available, launch, continue_thread
+from linked_context import LinkStore, diff_snapshots, snapshot_of, valid_uuid
 
 
 class ContextService:
     def __init__(self, config_path, codex_home, discover_sessions):
         self.store = GraphStore(Path(config_path).expanduser().parent / "context-graphs")
         self.manifests = self.store.root.parent / "context-runs"
+        self.links = LinkStore(self.store.root.parent)
+        self.refresh_pending = {}
+        self.active_links = set()
         self.codex_home = codex_home
         self.discover_sessions = discover_sessions
         self.pending = {}
@@ -33,6 +37,15 @@ class ContextService:
             return {"graphs": self.store.list(), "runtimeAvailable": available()}
         if path == "/api/context/graph":
             return {"graph": self.store.get(params.get("id", ["main"])[0])}
+        if path == "/api/context/links":
+            return {"links": self.links.list()}
+        if path == "/api/context/link":
+            rid = params.get("id", [""])[0]
+            link = self.links.get(rid)
+            return {"link": link, "snapshot": self.links.get_snapshot(link["latestSnapshot"])}
+        if path == "/api/context/snapshot":
+            sid = params.get("id", [""])[0]
+            return {"snapshot": self.links.get_snapshot(sid)}
         if path == "/api/context/runs":
             if not self.manifests.is_dir():
                 return {"runs": []}
@@ -114,6 +127,27 @@ class ContextService:
                 package["redactionsApplied"] = True
                 package["estimatedTokens"] = (len(prompt) + 3) // 4
                 return {"package": dict(package), "approvalToken": token}
+        if path == "/api/context/link-existing":
+            # Explicit v0.4 migration, never silently link unrelated records.
+            rid = valid_uuid(body.get("runId"))
+            saved = self.manifests / (rid + ".json")
+            with self.lock:
+                if not saved.is_file() or saved.is_symlink() or saved.stat().st_size > 128000:
+                    raise GraphError("Completed local run metadata is unavailable")
+                record = json.loads(saved.read_text(encoding="utf-8"))
+                if record.get("id") != rid or record.get("status") != "completed":
+                    raise GraphError("Only completed local runs can be linked")
+                target = valid_uuid(record.get("threadId"))
+                if record.get("linkedRunId") and record.get("linkedRunId") != rid:
+                    raise GraphError("A linked refresh job cannot be made into a root link")
+                if not record.get("graphId") or not record.get("sourceRevisions") or not record.get("segments"):
+                    raise GraphError("Run lacks reproducible source metadata")
+                if body.get("approved") is not True or body.get("threadId") != target:
+                    raise GraphError("Explicit confirmation of the existing thread is required")
+                link = self.links.link(record, rid, target)
+                return {"link": link}
+        if path.startswith("/api/context/refresh-"):
+            return self._refresh_post(path, body)
         if path == "/api/context/execute":
             if body.get("approved") is not True:
                 raise GraphError("Execution must be explicitly confirmed")
@@ -147,14 +181,33 @@ class ContextService:
             return {"run": dict(run)}
         raise GraphError("Unknown Context Graph write endpoint")
 
+    def _refresh_post(self, path, body):
+        from linked_refresh import refresh_post
+        return refresh_post(self, path, body)
+
+    def _refresh_worker(self, job_id, rid, link, pending):
+        from linked_refresh import refresh_worker
+        return refresh_worker(self, job_id, rid, link, pending)
+
     def _worker(self, rid, package):
         def update(thread_id, status):
             with self.lock:
                 self.runs[rid]["threadId"] = thread_id
                 self.runs[rid]["status"] = status
-            self._write_manifest(rid)
+                self._write_manifest(rid)
         try:
             result = launch(package["prompt"], package["cwd"], on_started=update)
+            if result["status"] == "completed":
+                try:
+                    with self.lock:
+                        link = self.links.link(package, rid, result["threadId"])
+                        self.runs[rid]["linkedRunId"] = rid
+                        self.runs[rid]["snapshotId"] = link["latestSnapshot"]
+                except (GraphError, OSError) as exc:
+                    # Codex completed even if the optional linkage failed.
+                    with self.lock:
+                        self.runs[rid]["linkError"] = "Link metadata unavailable: " + type(exc).__name__
+            # Publish terminal status only AFTER its persisted provenance is ready.
             update(result["threadId"], result["status"])
         except Exception as exc:
             # Background threads must never leave a permanent "starting" state

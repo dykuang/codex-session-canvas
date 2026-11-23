@@ -1,7 +1,7 @@
 name: Context Graph checks
 on:
   push:
-    branches: [v0.3-v0.4-context-graph]
+    branches: [v0.3-v0.4-context-graph, v0.5-linked-context-provenance]
   pull_request:
     branches: [main]
 jobs:

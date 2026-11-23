@@ -131,7 +131,8 @@ def evaluate(raw, codex_home, known_sessions, *, consent=False):
         "task": task, "prompt": prompt, "promptHash": _hash(prompt),
         "estimatedTokens": (len(prompt) + 3) // 4,
         "segments": [{"sourceId": p.get("sourceId"), "segmentId": p.get("segmentId"),
-                      "role": p["role"], "derived": p["derived"]} for p in parts],
+                      "role": p["role"], "derived": p["derived"],
+                      "contentHash": _hash(p["text"])} for p in parts],
     }
     return package
 

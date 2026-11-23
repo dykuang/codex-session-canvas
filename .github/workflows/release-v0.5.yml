@@ -1,0 +1,80 @@
+name: Publish v0.5.0
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/releases/v0.5.0.md"
+      - "scripts/build_release.py"
+      - ".github/workflows/release-v0.5.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  release-checks:
+    name: v0.5.0 acceptance (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run all unit, HTTP and multi-round user simulations
+        run: python -m unittest discover -s tests -v
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Syntax-check web canvas
+        run: |
+          node --check web/app.js
+          node --check web/project.js
+          node --check web/context.js
+      - name: Build and CRC-check release ZIP
+        run: python scripts/build_release.py
+      - name: Export metadata-only demo
+        run: python canvas.py --demo --export --output demo.html
+      - name: Install browser dependencies (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          npm install --no-save playwright
+          npx playwright install chromium
+      - name: End-to-end Chromium canvas smoke (Ubuntu)
+        if: runner.os == 'Linux'
+        run: node tests/browser_smoke.mjs
+
+  publish:
+    name: Create v0.5.0 GitHub Release
+    needs: release-checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build distribution ZIP
+        run: python scripts/build_release.py
+      - name: Verify this release is not already published
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view v0.5.0 >/dev/null 2>&1; then
+            echo "v0.5.0 already exists; no tag or release will be replaced."
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin 'refs/tags/v0.5.0' >/dev/null; then
+            echo "Tag v0.5.0 already exists; refusing to overwrite it."
+            exit 1
+          fi
+      - name: Publish tag and release asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create v0.5.0 dist/codex-session-canvas-v0.5.0.zip \
+            --target "${GITHUB_SHA}" \
+            --title "Codex Session Canvas v0.5.0" \
+            --notes-file docs/releases/v0.5.0.md \
+            --latest
