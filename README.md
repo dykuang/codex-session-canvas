@@ -226,7 +226,7 @@ non-UUID thread identifier, creation still succeeds but linking is not available
   history. The linked target is **not** the Source Session.
 - `context-links/snapshots/<sha256>-<run-uuid>.json` — selected source IDs,
   segment IDs, content fingerprints, graph/source revision fingerprints and
-  prompt hash. No source excerpts, generated prompts, task body or notes.
+  source-context prompt digest and the separately recorded **actually delivered** prompt digest (which may differ after redaction). No source excerpts, generated prompts, task body or notes.
 - `context-runs/<job-uuid>.json` — metadata-only execution attempt/status,
   linked run ID, thread ID and snapshot reference.
 
@@ -244,6 +244,9 @@ updates are not recorded as successfully applied.
 ### API (local server only)
 
 - `GET /api/context/links` — list metadata-only linked targets.
+- `GET /api/context/snapshot?id=<sha256>-<run-uuid>` — one immutable provenance snapshot.
+- `POST /api/context/link-existing` — explicit opt-in backfill for a completed
+  v0.4 run: `{"runId":"<run-uuid>","threadId":"<original-thread-uuid>","approved":true}`.
 - `GET /api/context/link?id=<run-uuid>` — link and latest snapshot.
 - `POST /api/context/refresh-preview` — `{"runId":"<uuid>","consent":true}`.
 - `POST /api/context/refresh-redact` — approval token + edited prompt.
