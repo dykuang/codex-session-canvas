@@ -143,7 +143,7 @@ function inspect(){editor.replaceChildren();const n=node(selected);if(!n){editor
  editor.append(make("h3","",labels[n.type].slice(2)),make("p","ctx-small",n.id));
  function txt(key,label,rows=1){const inp=make(rows>1?"textarea":"input","ctx-input");inp.value=n.config[key]||"";if(rows>1)inp.rows=rows;field(label,inp);inp.onchange=()=>change(n,key,inp.value);}
  if(n.type==="session_source"){const sel=make("select","ctx-input");for(const s of app.getData().sessions){const o=make("option","",s.name+" · "+s.id.slice(0,8));o.value=s.id;sel.append(o);}sel.value=n.config.sessionId;field("Session ID",sel);sel.onchange=()=>change(n,"sessionId",sel.value);}
- if(n.type==="selector"){const mode=make("select","ctx-input");for(const v of ["selected","all"]){const o=make("option","",v==="all"?"全部片段":"选定片段");o.value=v;mode.append(o);}mode.value=n.config.mode||"selected";field("选取范围",mode);mode.onchange=()=>change(n,"mode",mode.value);
+ if(n.type==="selector"){const mode=make("select","ctx-input");for(const v of ["selected","all","references"]){const o=make("option","",v==="all"?"全部片段":v==="references"?"仅提取文件名引用（不读文件）":"选定片段");o.value=v;mode.append(o);}mode.value=n.config.mode||"selected";field("选取范围",mode);mode.onchange=()=>change(n,"mode",mode.value);
  const read=make("button","ctx-btn","明确授权读取此 Session");editor.append(read);
  read.onclick=async()=>{const e=graph.edges.find(e=>e.to===n.id),src=node(e?.from);if(!src||src.type!=="session_source")return inform("先连接 Session Source",true);
  if(!confirm("读取指定 Session 的用户/助手内容供你选择？"))return;
