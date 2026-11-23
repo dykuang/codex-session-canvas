@@ -5,6 +5,7 @@ Every call that can load session content must be explicit and local. Never cache
 from __future__ import annotations
 import hashlib
 import json
+import re
 from pathlib import Path
 
 from context_graph import GraphError, graph_digest, validate_ready
@@ -45,10 +46,21 @@ def evaluate(raw, codex_home, known_sessions, *, consent=False):
             if cfg.get("mode", "selected") == "selected" and not selected:
                 raise GraphError("Select one or more segments, or explicitly choose all")
             parts = []
+            mode = cfg.get("mode", "selected")
             for item in src["segments"]:
-                if cfg.get("mode") == "all" or item["id"] in selected:
-                    parts.append({"sourceId": sid, "segmentId": item["id"],
-                                  "role": item["role"], "text": item["text"], "derived": False})
+                if mode == "all" or (mode == "references" and not selected) or item["id"] in selected:
+                    if mode == "references":
+                        # File names only: never dereference arbitrary mentioned paths.
+                        # Names are unverified claims from untrusted historical text.
+                        pattern = r"(?<![A-Za-z0-9_])(?:[A-Za-z]:[\\/]|/)?(?:[A-Za-z0-9_.-]+[\\/])*[A-Za-z0-9_.-]+\\.(?:py|js|jsx|ts|tsx|md|json|yaml|yml|toml|txt|rs|go|java|cpp|c|h|html|css|sql)\\b"
+                        for ref in dict.fromkeys(re.findall(pattern, item["text"], flags=re.I)):
+                            parts.append({"sourceId": sid, "segmentId": item["id"],
+                                          "role": "file-reference",
+                                          "text": "Unverified file path mentioned: " + ref,
+                                          "derived": True})
+                    else:
+                        parts.append({"sourceId": sid, "segmentId": item["id"],
+                                      "role": item["role"], "text": item["text"], "derived": False})
             if not parts:
                 raise GraphError("Selected segments were not found; reload the source")
             values[nid] = parts
