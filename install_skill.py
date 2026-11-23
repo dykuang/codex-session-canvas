@@ -15,7 +15,7 @@ if dest.exists():
         p.error(f'Will not overwrite existing skill at {dest}; pass --force to replace')
     shutil.rmtree(dest)
 dest.mkdir(parents=True,exist_ok=False)
-for item in ['SKILL.md','canvas.py','project_registry.py','project_bridge.py','project_server.py','context_graph.py','context_reader.py','context_engine.py','context_service.py','codex_runtime.py']:
+for item in ['SKILL.md','canvas.py','project_registry.py','project_bridge.py','project_server.py','context_graph.py','context_reader.py','context_engine.py','context_service.py','codex_runtime.py','linked_context.py','linked_refresh.py']:
     shutil.copy2(root/item,dest/item)
 shutil.copytree(root/'web',dest/'web')
 print(f'Codex skill installed: {dest}')
