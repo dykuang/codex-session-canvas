@@ -70,6 +70,15 @@ class ContextTests(unittest.TestCase):
         with self.assertRaises(GraphError):
             validate_graph(bad)
 
+    def test_cross_project_three_source_example_contract(self):
+        example = Path(__file__).resolve().parents[1] / "examples" / "context-three-source.json"
+        graph = json.loads(example.read_text(encoding="utf-8"))
+        validated, order, target = validate_ready(graph)
+        self.assertEqual(target["config"]["projectId"], "logical:C")
+        self.assertEqual(sum(n["type"] == "session_source" for n in validated["nodes"]), 3)
+        self.assertEqual(sum(e["to"] == "merge" for e in validated["edges"]), 4)
+        self.assertLess(order.index("sourceA1"), order.index("newSessionC"))
+
     def test_fan_in_and_cycle(self):
         g = graph_for(idstr(11), "/project")
         g["edges"].append({"from": "note1", "to": "target1", "out": "out", "in": "in"})
