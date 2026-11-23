@@ -163,6 +163,15 @@ node --check web/context.js
 
 The cross-platform GitHub Actions workflow checks Linux and Windows against Python 3.11 and Node 22. A real Codex Desktop/CLI integration check is separate and must run on a configured Windows machine.
 
+For that final Windows acceptance check, use the following **explicit opt-in** smoke command from a PowerShell prompt with an authenticated Codex CLI installed:
+
+```powershell
+python .\scripts\verify_codex_runtime.py
+python .\scripts\verify_codex_runtime.py --run
+```
+
+The first command only prints whether Codex is on PATH. The second creates **one real, read-only test session** in a temporary folder, may use plan quota, prints the actual thread UUID and status, and never modifies your project. Do not assume a successful mocked CI test is equivalent to this live Windows verification.
+
 ## Limitations
 
 - This MVP supports local JSONL and compressed `.jsonl.zst` rollouts, but not cloud-only conversations. Reading compressed archives requires the `zstandard` Python package.
