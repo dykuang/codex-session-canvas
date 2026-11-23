@@ -228,6 +228,25 @@ class LinkedContextTest(unittest.TestCase):
             "runId": self.run_id, "consent": True})
         self.assertTrue(again["unchanged"], "Redaction must not force endless refresh prompts")
 
+    def test_installed_skill_includes_linked_modules(self):
+        import subprocess
+        import sys
+        repo = Path(__file__).resolve().parents[1]
+        destination = self.root / "installed-skill"
+        process = subprocess.run([
+            sys.executable, str(repo / "install_skill.py"),
+            "--destination", str(destination)
+        ], capture_output=True, text=True)
+        self.assertEqual(process.returncode, 0, process.stderr)
+        self.assertTrue((destination / "linked_context.py").is_file())
+        self.assertTrue((destination / "linked_refresh.py").is_file())
+        exported = subprocess.run([
+            sys.executable, str(destination / "canvas.py"), "--demo",
+            "--output", str(self.root / "installed-demo.html"), "--export"
+        ], capture_output=True, text=True)
+        self.assertEqual(exported.returncode, 0, exported.stderr)
+        self.assertTrue((self.root / "installed-demo.html").is_file())
+
     def test_stale_source_blocks_execution(self):
         self.create_link()
         self.write("FIRST CHANGED REFERENCE")
