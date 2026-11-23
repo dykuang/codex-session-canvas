@@ -48,7 +48,11 @@ try {
     await page.getByRole("button",{name:/Context Graph/}).click();
     assert(await page.locator(".ctx-overlay").isVisible());
     await page.getByRole("button",{name:"+ Source"}).click();
-    assert.equal(await page.locator(".ctx-node").count(),1);
+    await page.getByRole("button",{name:"+ Selector"}).click();
+    assert.equal(await page.locator(".ctx-node").count(),2);
+    await page.locator(".ctx-node").nth(0).locator(".ctx-out").dragTo(
+      page.locator(".ctx-node").nth(1).locator(".ctx-in"),{timeout:12000});
+    assert.equal(await page.locator(".ctx-wire").count(),1,"Drag-to-connect must create an edge");
     await page.getByRole("button",{name:"保存",exact:true}).click();
     await page.waitForTimeout(350);
     const graph={
@@ -81,7 +85,7 @@ try {
     assert(displayed.includes("Task from browser smoke"));
     assert.equal(jsErrors.length,0,jsErrors.join("\n"));
     await page.screenshot({path:join(root,"context-smoke.png")});
-    console.log("PASS browser smoke: metadata-only export, Project/Session/Context views, save/reload, approved source preview");
+    console.log("PASS browser smoke: metadata-only export, drag-to-connect, 3 canvas views, save/reload, consent preview");
   } finally {
     await browser.close();
   }
