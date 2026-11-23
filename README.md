@@ -133,6 +133,8 @@ python .\canvas.py --serve --open --project (Get-Location).Path
 
 Click **Context Graph** at the top of the Session Canvas. The third relationship layer is independent of Project DAG successor edges and of Fork/parent/manual Session links. Create a graph using **+ Graph** or edit the default **main** graph. The graph is stored separately as `~/.codex-session-canvas/context-graphs/<graph-id>.json` with a version/revision and atomic save. It stores node settings, project IDs, source session UUIDs, selection IDs, human-authored notes/approved summaries and wire topology, **not raw historical turns** by default.
 
+A validated A1+B2+A3 → Selector/Summary/Note → Merge → new Session C example is available in [`examples/context-three-source.json`](examples/context-three-source.json); replace the example Session UUIDs and target working folder before using it. The file contains no historical conversation bodies.
+
 ### Typical cross-project workflow
 
 1. Select a historical Session A1 from the Session dropdown, click **+ Source**. Repeat for B2 and A3; add one **Selector** for each, then **Merge** and **New Session**.
@@ -140,7 +142,7 @@ Click **Context Graph** at the top of the Session Canvas. The third relationship
 3. Select a Selector and explicitly click **授权读取**. The local reader only fetches that Session after approval, returns bounded user/assistant text segments, and excludes system messages and tool execution/output by default. Tick chosen turn IDs, or explicitly choose the limited **all** mode.
 4. Add **Context Note** for extra instructions; optionally insert an editable **Summarize** node after a Selector. Summaries are **manual/curated** in this release, not an automatically connected paid model call; mark them approved.
 5. Configure a Merge budget, then select a **real destination working folder** and initial task in **New Session**. The destination folder is one folder from the logical project, not the entire folder set.
-6. **保存 → 预览**. Inspect the **exact** untrusted-reference prompt text, source UUIDs, estimated token budget and SHA-256 fingerprint. No context is sent to Codex before final confirmation. Edit/exclude sensitive material in source/selector/note/summary and re-preview.
+6. **保存 → 预览**. Inspect the **exact** untrusted-reference prompt text, source UUIDs, estimated token budget and SHA-256 fingerprint. No context is sent to Codex before final confirmation. Edit/exclude sensitive material in source/selector/note/summary and re-preview, or directly redact the Context preview and click **应用脱敏修改** to rebind the one-time approval to the edited hash. Editing the preview invalidates prior approval, and the task/safety preamble cannot be silently changed through the redaction endpoint.
 7. **创建 Session** requires a *second confirmation* and a short-lived, one-time server approval token. The server re-checks source revisions and package hash. If the Codex CLI App Server is available, it invokes `thread/start` and `turn/start` with the approved snapshot, **read-only sandbox**, and a supplied task in the selected directory. The UI displays actual thread/turn statuses, never inventing a UUID.
 8. **运行记录** shows metadata-only manifests with the target thread ID, source UUIDs/revisions, graph/package hash and status. On restart, records remain available; graph config and manifests are distinct from Codex rollouts.
 
