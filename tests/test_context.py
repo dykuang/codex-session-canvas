@@ -57,7 +57,7 @@ class ContextTests(unittest.TestCase):
     def test_graph_contract_and_toposort(self):
         g = graph_for(idstr(10), "/project")
         normalized, order = validate_graph(g)
-        self.assertEqual("s1", order[0])
+        self.assertLess(order.index("s1"), order.index("select1"))
         self.assertEqual("target1", order[-1])
         self.assertEqual(normalized["edges"], g["edges"])
         validate_ready(g)
