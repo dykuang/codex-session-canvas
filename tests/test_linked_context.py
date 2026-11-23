@@ -150,6 +150,33 @@ class LinkedContextTest(unittest.TestCase):
                 "approvalToken": preview["approvalToken"],
                 "approved": True, "promptHash": preview["promptHash"]})
 
+    def test_runtime_resumes_existing_thread_without_creating(self):
+        import sys
+        from codex_runtime import continue_thread
+        with tempfile.TemporaryDirectory() as tmp:
+            mock_app = Path(tmp) / "fake_codex.py"
+            code = (
+                "import json,sys\\n"
+                "for line in sys.stdin:\\n"
+                " m=json.loads(line)\\n"
+                " if m.get('id')==1: print(json.dumps({'id':1,'result':{}}),flush=True)\\n"
+                " if m.get('id')==2:\\n"
+                "  assert m['method']=='thread/resume'\\n"
+                "  assert m['params']['threadId']=='%s'\\n"
+                "  print(json.dumps({'id':2,'result':{'thread':{'id':'%s'}}}),flush=True)\\n"
+                " if m.get('id')==3:\\n"
+                "  assert m['method']=='turn/start'\\n"
+                "  assert m['params']['threadId']=='%s'\\n"
+                "  assert m['params']['input'][0]['text']=='UPDATE'\\n"
+                "  print(json.dumps({'id':3,'result':{'turn':{'id':'one'}}}),flush=True)\\n"
+                "  print(json.dumps({'method':'turn/completed','params':{'threadId':'%s','turn':{'status':'completed'}}}),flush=True)\\n"
+            ) % ((self.target,) * 4)
+            mock_app.write_text(code, encoding="utf-8")
+            result = continue_thread("UPDATE", str(self.cwd), self.target,
+                                     command=[sys.executable, str(mock_app)], timeout=10)
+            self.assertEqual(result["threadId"], self.target)
+            self.assertEqual(result["status"], "completed")
+
     def test_stale_source_blocks_execution(self):
         self.create_link()
         self.write("FIRST CHANGED REFERENCE")
