@@ -147,7 +147,10 @@ function inspect(){editor.replaceChildren();const n=node(selected);if(!n){editor
  const read=make("button","ctx-btn","明确授权读取此 Session");editor.append(read);
  read.onclick=async()=>{const e=graph.edges.find(e=>e.to===n.id),src=node(e?.from);if(!src||src.type!=="session_source")return inform("先连接 Session Source",true);
  if(!confirm("读取指定 Session 的用户/助手内容供你选择？"))return;
- try{const r=await api("/api/context/source",{sessionId:src.config.sessionId,consent:true});const group=make("div","ctx-segments");editor.append(group);
+ try{const r=await api("/api/context/source",{sessionId:src.config.sessionId,consent:true});
+ const search=make("input","ctx-input");search.placeholder="仅搜索当前已授权读取的片段";
+ const group=make("div","ctx-segments");editor.append(search,group);
+ search.oninput=()=>{const term=search.value.trim().toLowerCase();for(const row of group.children)row.hidden=!!term&&!row.textContent.toLowerCase().includes(term);};
  for(const seg of r.segments){const row=make("label","ctx-segment");const box=make("input");box.type="checkbox";box.checked=(n.config.segmentIds||[]).includes(seg.id);
  box.onchange=()=>{const ids=new Set(n.config.segmentIds||[]);if(box.checked)ids.add(seg.id);else ids.delete(seg.id);n.config.segmentIds=[...ids];n.config.mode="selected";changed();};
  row.append(box,make("span","",seg.role+" "+seg.id+" · "+seg.text.slice(0,160)));group.append(row);}inform("已读取 "+r.segments.length+" 个片段（并未保存正文）");}catch(e){inform("读取失败："+e.message,true);}};}
