@@ -70,9 +70,41 @@ linkedBtn.onclick=async()=>{
    const row=make("div","ctx-edge");
    row.append(make("span","",link.graphId+" · "+link.threadId.slice(0,8)+" · snapshots "+link.history.length));
    const view=make("button","ctx-btn","检查更新");view.onclick=()=>linkedPreview(link);
-   row.append(view);editor.append(row);
+   const history=make("button","ctx-btn","快照历史");
+   history.onclick=async()=>{
+    try{
+     editor.replaceChildren(make("h3","","PROVENANCE HISTORY · "+link.threadId.slice(0,8)));
+     for(const id of link.history){
+      const res=await fetch("/api/context/snapshot?id="+encodeURIComponent(id));
+      const entry=await res.json();if(!res.ok)throw Error(entry.error);
+      const block=make("pre","ctx-small");
+      block.textContent=JSON.stringify({
+       snapshotId:id,sourceRevisions:entry.snapshot.sourceRevisions,
+       segments:entry.snapshot.segments,contextPromptHash:entry.snapshot.promptHash,
+       deliveredPromptHash:entry.snapshot.deliveredPromptHash
+      },null,2);
+      editor.append(block);
+     }
+    }catch(e){inform("无法载入快照历史："+e.message,true);}
+   };
+   row.append(view,history);editor.append(row);
   }
   if(!data.links.length)editor.append(make("p","","暂无已完成且成功绑定的 Context Session。"));
+  const migrate=make("button","ctx-btn","关联旧 v0.4 成功运行");
+  migrate.onclick=async()=>{
+   const runId=prompt("输入已完成的 v0.4 Run UUID");
+   if(!runId)return;
+   try{
+    const response=await fetch("/api/context/run?id="+encodeURIComponent(runId));
+    const info=await response.json();if(!response.ok)throw Error(info.error);
+    const run=info.run;
+    if(run.status!=="completed"||!run.threadId)throw Error("必须是有 Thread ID 的成功运行记录");
+    if(!confirm("确认将原 Run "+runId+" 关联到已存在 Session "+run.threadId+"？不会读取历史正文或执行新任务。"))return;
+    await api("/api/context/link-existing",{runId,threadId:run.threadId,approved:true});
+    inform("旧运行已关联，重新打开 Linked Context 查看");
+   }catch(e){inform("旧运行关联失败："+e.message,true);}
+  };
+  editor.append(migrate);
  }catch(e){inform("Linked Context 读取失败："+e.message,true);}
 };
 async function linkedPreview(link){
