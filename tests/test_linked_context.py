@@ -177,6 +177,57 @@ class LinkedContextTest(unittest.TestCase):
             self.assertEqual(result["threadId"], self.target)
             self.assertEqual(result["status"], "completed")
 
+    def test_backfill_completed_v04_run_and_snapshot_history(self):
+        self.service.manifests.mkdir(parents=True)
+        old_run = {"id": self.run_id, "status": "completed",
+                   "threadId": self.target}
+        from context_engine import sanitize_package
+        old_run.update(sanitize_package(self.package))
+        path = self.service.manifests / (self.run_id + ".json")
+        path.write_text(json.dumps(old_run), encoding="utf-8")
+        with self.assertRaises(GraphError):
+            self.service.post("/api/context/link-existing", {
+                "runId": self.run_id, "threadId": self.target, "approved": False})
+        result = self.service.post("/api/context/link-existing", {
+            "runId": self.run_id, "threadId": self.target, "approved": True})
+        link = result["link"]
+        snap = self.service.get("/api/context/snapshot",
+                                {"id": [link["latestSnapshot"]]})["snapshot"]
+        self.assertEqual(snap["deliveredPromptHash"], self.package["promptHash"])
+        self.assertNotIn("PRIVATE INITIAL RESEARCH", str(snap))
+        with self.assertRaises(GraphError):
+            self.service.post("/api/context/link-existing", {
+                "runId": self.run_id, "threadId": self.target, "approved": True})
+
+    def test_redacted_delivery_hash_preserves_context_comparison(self):
+        self.create_link()
+        self.write("PRIVATE REVISED RESEARCH")
+        preview = self.service.post("/api/context/refresh-preview",
+                                    {"runId": self.run_id, "consent": True})
+        redacted = preview["prompt"].replace("PRIVATE REVISED RESEARCH", "[REDACTED]")
+        result = self.service.post("/api/context/refresh-redact", {
+            "approvalToken": preview["approvalToken"], "editedPrompt": redacted})
+        self.assertNotEqual(result["promptHash"], preview["promptHash"])
+        with patch("linked_refresh.available", return_value=True), patch(
+                "linked_refresh.continue_thread",
+                return_value={"status": "completed", "threadId": self.target}):
+            run = self.service.post("/api/context/refresh-apply", {
+                "approvalToken": preview["approvalToken"],
+                "approved": True, "promptHash": result["promptHash"]})["run"]
+            for _ in range(100):
+                job = self.service.get("/api/context/run", {"id": [run["id"]]})["run"]
+                if job["status"] != "starting":
+                    break
+                time.sleep(.01)
+        self.assertEqual(job["status"], "completed")
+        link = self.service.links.get(self.run_id)
+        snap = self.service.links.get_snapshot(link["latestSnapshot"])
+        self.assertEqual(snap["deliveredPromptHash"], result["promptHash"])
+        self.assertNotEqual(snap["promptHash"], result["promptHash"])
+        again = self.service.post("/api/context/refresh-preview", {
+            "runId": self.run_id, "consent": True})
+        self.assertTrue(again["unchanged"], "Redaction must not force endless refresh prompts")
+
     def test_stale_source_blocks_execution(self):
         self.create_link()
         self.write("FIRST CHANGED REFERENCE")
