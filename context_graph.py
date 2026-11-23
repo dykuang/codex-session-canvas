@@ -88,7 +88,7 @@ def validate_graph(raw):
             except ValueError as exc:
                 raise GraphError("Session source needs a valid UUID") from exc
         if kind == "selector":
-            if config.get("mode", "selected") not in ("selected", "all"):
+            if config.get("mode", "selected") not in ("selected", "all", "references"):
                 raise GraphError("Unknown selector mode")
             if not isinstance(config.get("segmentIds", []), list) or len(config.get("segmentIds", [])) > 500:
                 raise GraphError("Too many segment IDs")
