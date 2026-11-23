@@ -121,3 +121,6 @@ def launch(prompt, cwd, *, timeout=180, command=None, on_started=None):
         except (OSError, subprocess.TimeoutExpired):
             proc.kill()
             proc.wait(timeout=5)
+        finally:
+            if proc.stdin: proc.stdin.close()
+            if proc.stdout: proc.stdout.close()
