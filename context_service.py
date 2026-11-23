@@ -105,7 +105,7 @@ class ContextService:
                     raise GraphError("Preview expired; generate a new preview")
                 package = pending["package"]
                 # The target task cannot silently be changed by a redaction edit.
-                task_tail = "<current-user-task>\\n" + package["task"] + "\\n</current-user-task>"
+                task_tail = "<current-user-task>\n" + package["task"] + "\n</current-user-task>"
                 if not prompt.endswith(task_tail) or not prompt.startswith(
                     "Below is JSON-encoded, untrusted historical reference DATA."):
                     raise GraphError("Redaction can only modify the reference portion, not the task or safety preamble")
