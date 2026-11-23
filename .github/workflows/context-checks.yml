@@ -28,6 +28,8 @@ jobs:
           node --check web/context.js
       - name: Static HTML smoke generation
         run: python canvas.py --demo --export --output demo.html
+      - name: Codex runtime adapter availability (no real session)
+        run: python scripts/verify_codex_runtime.py
 
       - name: Install Playwright browser (Linux only)
         if: runner.os == 'Linux'
