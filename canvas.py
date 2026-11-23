@@ -274,6 +274,21 @@ def main(argv=None) -> int:
     output.parent.mkdir(parents=True, exist_ok=True)
     from project_bridge import project_data
     data = project_data(build_data(codex_home, args.project, args.demo, args.session), args.config, args.project, args.session, args.demo)
+    # Read-only topology snapshot: no historic turns, user-authored notes,
+    # summaries or initial task are embedded in standalone HTML exports.
+    from context_graph import GraphStore
+    store = GraphStore(args.config.expanduser().parent / "context-graphs")
+    try:
+        snapshot = store.get("main")
+        data["contextGraphPreview"] = {
+            **snapshot,
+            "nodes": [{**node, "config": {
+                key: value for key, value in node["config"].items()
+                if key not in ("text", "task")
+            }} for node in snapshot["nodes"]]
+        }
+    except (ValueError, OSError):
+        data["contextGraphPreview"] = None
     output.write_text(render_html(data, live=False), encoding="utf-8")
     print(f"Canvas exported: {output}")
     print(f"Sessions: {len(data['sessions'])} | Projects: {len(data['projects'])}")
