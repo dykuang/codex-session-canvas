@@ -7,8 +7,10 @@ real, read-only, minimal Codex thread/turn (may consume your Codex plan quota).
 import argparse
 import json
 import tempfile
+import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from codex_runtime import CodexRuntimeError, available, launch
 
 
