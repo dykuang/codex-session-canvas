@@ -156,10 +156,15 @@ class ContextService:
         try:
             result = launch(package["prompt"], package["cwd"], on_started=update)
             update(result["threadId"], result["status"])
-        except (CodexRuntimeError, OSError, ValueError) as exc:
+        except Exception as exc:
+            # Background threads must never leave a permanent "starting" state
+            # if an unexpected adapter error escapes. Avoid leaking potentially
+            # sensitive exception text to user-visible persistent manifests.
+            safe_error = (str(exc) if isinstance(exc, CodexRuntimeError)
+                          else "Codex adapter failed (" + type(exc).__name__ + ")")
             with self.lock:
                 self.runs[rid]["status"] = "error"
-                self.runs[rid]["error"] = str(exc)
+                self.runs[rid]["error"] = safe_error[:500]
                 if getattr(exc, "thread_id", None):
                     self.runs[rid]["threadId"] = exc.thread_id
             self._write_manifest(rid)
