@@ -28,3 +28,12 @@ jobs:
           node --check web/context.js
       - name: Static HTML smoke generation
         run: python canvas.py --demo --export --output demo.html
+
+      - name: Install Playwright browser (Linux only)
+        if: runner.os == 'Linux'
+        run: |
+          npm install --no-save playwright
+          npx playwright install chromium
+      - name: Browser context workflow smoke (Linux only)
+        if: runner.os == 'Linux'
+        run: node tests/browser_smoke.mjs
