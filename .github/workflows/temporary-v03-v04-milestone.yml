@@ -9,7 +9,6 @@ permissions:
 
 jobs:
   milestone:
-    if: startsWith(github.event.head_commit.message, 'chore: setup one-time release milestone')
     runs-on: ubuntu-latest
     steps:
       - name: Create milestone and assign tracking issues
