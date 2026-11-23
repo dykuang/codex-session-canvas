@@ -83,9 +83,14 @@ try {
     const displayed=await page.locator(".ctx-editor textarea").inputValue();
     assert(displayed.includes("PRIVATE SOURCE CONTENT FOR OPT-IN"));
     assert(displayed.includes("Task from browser smoke"));
+    await page.locator(".ctx-editor textarea").fill(displayed.replace(
+      "PRIVATE SOURCE CONTENT FOR OPT-IN","[REDACTED]"));
+    await page.getByRole("button",{name:/应用脱敏修改/}).click();
+    await page.waitForTimeout(300);
+    assert((await page.locator(".ctx-status").textContent()).includes("脱敏修改已应用"));
     assert.equal(jsErrors.length,0,jsErrors.join("\n"));
     await page.screenshot({path:join(root,"context-smoke.png")});
-    console.log("PASS browser smoke: metadata-only export, drag-to-connect, 3 canvas views, save/reload, consent preview");
+    console.log("PASS browser smoke: export, drag-to-connect, 3 views, save/reload, consent preview and in-memory redaction");
   } finally {
     await browser.close();
   }
