@@ -194,23 +194,21 @@ class ContextService:
             with self.lock:
                 self.runs[rid]["threadId"] = thread_id
                 self.runs[rid]["status"] = status
-            self._write_manifest(rid)
+                self._write_manifest(rid)
         try:
             result = launch(package["prompt"], package["cwd"], on_started=update)
-            update(result["threadId"], result["status"])
             if result["status"] == "completed":
                 try:
                     with self.lock:
                         link = self.links.link(package, rid, result["threadId"])
                         self.runs[rid]["linkedRunId"] = rid
                         self.runs[rid]["snapshotId"] = link["latestSnapshot"]
-                    self._write_manifest(rid)
                 except (GraphError, OSError) as exc:
-                    # A completed real Codex run remains successful even if the
-                    # optional linkage fails to persist; report it separately.
+                    # Codex completed even if the optional linkage failed.
                     with self.lock:
                         self.runs[rid]["linkError"] = "Link metadata unavailable: " + type(exc).__name__
-                    self._write_manifest(rid)
+            # Publish terminal status only AFTER its persisted provenance is ready.
+            update(result["threadId"], result["status"])
         except Exception as exc:
             # Background threads must never leave a permanent "starting" state
             # if an unexpected adapter error escapes. Avoid leaking potentially
