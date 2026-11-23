@@ -58,7 +58,8 @@ class ContextHttpTests(unittest.TestCase):
             }
             try:
                 def fake_launch(prompt, cwd, *, on_started, **kwargs):
-                    self.assertIn("Selected history text", prompt)
+                    self.assertIn("[REDACTED]", prompt)
+                    self.assertNotIn("Selected history text", prompt)
                     self.assertNotIn("HIDDEN SYSTEM DATA", prompt)
                     self.assertEqual(cwd, str(work))
                     on_started(created_id, "thread_created")
@@ -119,8 +120,14 @@ class ContextHttpTests(unittest.TestCase):
                     self.assertEqual(400, code)
                     code, fresh = post("/api/context/preview", {"graphId": "main", "consent": True})
                     self.assertEqual(200, code)
+                    edited_prompt = fresh["package"]["prompt"].replace("Selected history text", "[REDACTED]")
+                    code, redacted = post("/api/context/redact", {"approvalToken": fresh["approvalToken"],
+                                                                    "editedPrompt": edited_prompt})
+                    self.assertEqual(200, code)
+                    self.assertNotIn("Selected history text", redacted["package"]["prompt"])
+                    self.assertNotEqual(redacted["package"]["promptHash"], fresh["package"]["promptHash"])
                     code, launched = post("/api/context/execute", {"approved": True, "approvalToken": fresh["approvalToken"],
-                                                                "promptHash": fresh["package"]["promptHash"]})
+                                                                "promptHash": redacted["package"]["promptHash"]})
                     self.assertEqual(200, code)
                     rid = launched["run"]["id"]
                     for _ in range(80):
