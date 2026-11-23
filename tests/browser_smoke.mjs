@@ -48,6 +48,10 @@ try {
     await page.getByRole("button",{name:/Session Graph/}).click();
     await page.getByRole("button",{name:/Context Graph/}).click();
     assert(await page.locator(".ctx-overlay").isVisible());
+    await page.getByRole("button",{name:/Linked Context/}).click();
+    assert((await page.locator(".ctx-editor").textContent()).includes("LINKED CONTEXTS"));
+    assert(!await page.content().then(x=>x.includes("PRIVATE SOURCE CONTENT FOR OPT-IN")),
+      "Linked Context browsing must not read conversation bodies");
     await page.getByRole("button",{name:"+ Source"}).click();
     await page.getByRole("button",{name:"+ Selector"}).click();
     assert.equal(await page.locator(".ctx-node").count(),2);
