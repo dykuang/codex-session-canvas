@@ -185,7 +185,17 @@ class ThreeUserJourneys(unittest.TestCase):
                 if status["status"] != "starting":
                     break
                 time.sleep(.01)
-            self.assertNotEqual(status["status"], "completed")
+            self.assertEqual(status["status"], "error")
+            self.assertIsNone(status["threadId"])
+            self.assertIn("RuntimeError", status["error"])
+            for _ in range(100):
+                manifests = list(self.service.manifests.glob("*.json")) if self.service.manifests.exists() else []
+                if manifests: break
+                time.sleep(.01)
+            self.assertEqual(len(manifests), 1)
+            saved_manifest = manifests[0].read_text(encoding="utf-8")
+            self.assertNotIn("independent theory", saved_manifest)
+            self.assertNotIn("experimental reference", saved_manifest)
             # A real user must not be able to reuse the same one-time approval.
             with self.assertRaises(GraphError):
                 self.service.post("/api/context/execute", {
