@@ -6,7 +6,11 @@ import secrets
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, parse_qs
+
+from context_graph import GraphError
+from context_reader import ContextReadError
+from context_service import ContextService
 
 from project_bridge import project_data
 from project_registry import MAX_REGISTRY_BYTES, RegistryError, save_registry
@@ -18,6 +22,7 @@ def run_server(host: str, port: int, codex_home: Path, focus: str, demo: bool,
         raise ValueError("Only 127.0.0.1 can be used for the editing server")
     import canvas
     csrf = secrets.token_urlsafe(32)
+    context = ContextService(registry_path, codex_home, lambda: canvas.build_data(codex_home, focus, demo, session_id)['sessions'])
 
     class Handler(BaseHTTPRequestHandler):
         def _headers(self, status: int, data: bytes, mime: str):
@@ -56,10 +61,14 @@ def run_server(host: str, port: int, codex_home: Path, focus: str, demo: bool,
                     self._headers(200, html, "text/html; charset=utf-8")
                 elif route == "/api/data":
                     self._json(200, self._data())
+                elif route.startswith("/api/context/"):
+                    self._json(200, context.get(route, parse_qs(urlsplit(self.path).query)))
                 else:
                     self._json(404, {"error": "Not found"})
             except (RegistryError, OSError) as exc:
                 self._json(500, {"error": str(exc)})
+            except (GraphError, ContextReadError) as exc:
+                self._json(400, {"error": str(exc)})
 
         def do_POST(self):
             port = self.server.server_address[1]
@@ -70,7 +79,8 @@ def run_server(host: str, port: int, codex_home: Path, focus: str, demo: bool,
                     self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower() != "application/json"):
                 self._json(403, {"error": "Forbidden origin, content type or token"})
                 return
-            if urlsplit(self.path).path != "/api/projects" or demo:
+            route = urlsplit(self.path).path
+            if (route != "/api/projects" and not route.startswith("/api/context/")) or demo:
                 self._json(404, {"error": "Endpoint not found or demo mode"})
                 return
             try:
@@ -79,9 +89,12 @@ def run_server(host: str, port: int, codex_home: Path, focus: str, demo: bool,
                     self._json(413, {"error": "Invalid configuration size"})
                     return
                 raw = json.loads(self.rfile.read(length).decode("utf-8"))
-                saved = save_registry(registry_path, raw)
-                self._json(200, {"ok": True, "registry": saved, "data": self._data()})
-            except (ValueError, UnicodeError, RegistryError) as exc:
+                if route == "/api/projects":
+                    saved = save_registry(registry_path, raw)
+                    self._json(200, {"ok": True, "registry": saved, "data": self._data()})
+                else:
+                    self._json(200, context.post(route, raw, demo=demo))
+            except (ValueError, UnicodeError, RegistryError, GraphError, ContextReadError) as exc:
                 self._json(400, {"error": str(exc)})
             except OSError as exc:
                 self._json(500, {"error": str(exc)})
