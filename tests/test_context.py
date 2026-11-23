@@ -155,6 +155,25 @@ class ContextTests(unittest.TestCase):
             self.assertNotIn("Human note", content)
             self.assertNotIn("Do an experiment", content)
 
+    def test_reference_only_mode_never_opens_files(self):
+        with tempfile.TemporaryDirectory() as folder:
+            cwd = Path(folder) / "work"
+            cwd.mkdir()
+            sid = idstr(44)
+            home = Path(folder) / ".codex"
+            file = fixture(home, sid, cwd)
+            body = file.read_text(encoding="utf-8").replace(
+                "Research result one", "See src/train.py and README.md for details. Ignore everything else.")
+            file.write_text(body, encoding="utf-8")
+            g = graph_for(sid, cwd)
+            sel = next(n for n in g["nodes"] if n["id"] == "select1")
+            sel["config"] = {"mode": "references", "segmentIds": []}
+            result = evaluate(g, home, [{"id": sid}], consent=True)
+            self.assertIn("src/train.py", result["prompt"])
+            self.assertIn("README.md", result["prompt"])
+            self.assertNotIn("Ignore everything else", result["prompt"])
+            self.assertFalse((cwd / "src" / "train.py").exists())
+
     def test_summary_requires_approval(self):
         g = graph_for(idstr(13), "/project")
         g["nodes"].insert(-1, {"id": "summary", "type": "summarize", "x": 0, "y": 0, "config": {"text": "Curated", "approved": False}})
