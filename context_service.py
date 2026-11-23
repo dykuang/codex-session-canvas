@@ -15,13 +15,17 @@ from pathlib import Path
 from context_graph import GraphError, GraphStore
 from context_reader import ContextReadError, segments
 from context_engine import evaluate, sanitize_package
-from codex_runtime import CodexRuntimeError, available, launch
+from codex_runtime import CodexRuntimeError, available, launch, continue_thread
+from linked_context import LinkStore, diff_snapshots, snapshot_of, valid_uuid
 
 
 class ContextService:
     def __init__(self, config_path, codex_home, discover_sessions):
         self.store = GraphStore(Path(config_path).expanduser().parent / "context-graphs")
         self.manifests = self.store.root.parent / "context-runs"
+        self.links = LinkStore(self.store.root.parent)
+        self.refresh_pending = {}
+        self.active_links = set()
         self.codex_home = codex_home
         self.discover_sessions = discover_sessions
         self.pending = {}
@@ -33,6 +37,12 @@ class ContextService:
             return {"graphs": self.store.list(), "runtimeAvailable": available()}
         if path == "/api/context/graph":
             return {"graph": self.store.get(params.get("id", ["main"])[0])}
+        if path == "/api/context/links":
+            return {"links": self.links.list()}
+        if path == "/api/context/link":
+            rid = params.get("id", [""])[0]
+            link = self.links.get(rid)
+            return {"link": link, "snapshot": self.links.get_snapshot(link["latestSnapshot"])}
         if path == "/api/context/runs":
             if not self.manifests.is_dir():
                 return {"runs": []}
@@ -114,6 +124,8 @@ class ContextService:
                 package["redactionsApplied"] = True
                 package["estimatedTokens"] = (len(prompt) + 3) // 4
                 return {"package": dict(package), "approvalToken": token}
+        if path.startswith("/api/context/refresh-"):
+            return self._refresh_post(path, body)
         if path == "/api/context/execute":
             if body.get("approved") is not True:
                 raise GraphError("Execution must be explicitly confirmed")
@@ -147,6 +159,14 @@ class ContextService:
             return {"run": dict(run)}
         raise GraphError("Unknown Context Graph write endpoint")
 
+    def _refresh_post(self, path, body):
+        from linked_refresh import refresh_post
+        return refresh_post(self, path, body)
+
+    def _refresh_worker(self, job_id, rid, link, pending):
+        from linked_refresh import refresh_worker
+        return refresh_worker(self, job_id, rid, link, pending)
+
     def _worker(self, rid, package):
         def update(thread_id, status):
             with self.lock:
@@ -156,6 +176,19 @@ class ContextService:
         try:
             result = launch(package["prompt"], package["cwd"], on_started=update)
             update(result["threadId"], result["status"])
+            if result["status"] == "completed":
+                try:
+                    with self.lock:
+                        link = self.links.link(package, rid, result["threadId"])
+                        self.runs[rid]["linkedRunId"] = rid
+                        self.runs[rid]["snapshotId"] = link["latestSnapshot"]
+                    self._write_manifest(rid)
+                except (GraphError, OSError) as exc:
+                    # A completed real Codex run remains successful even if the
+                    # optional linkage fails to persist; report it separately.
+                    with self.lock:
+                        self.runs[rid]["linkError"] = "Link metadata unavailable: " + type(exc).__name__
+                    self._write_manifest(rid)
         except Exception as exc:
             # Background threads must never leave a permanent "starting" state
             # if an unexpected adapter error escapes. Avoid leaking potentially
