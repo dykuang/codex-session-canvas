@@ -14,9 +14,9 @@ controls.append(make("strong","","CONTEXT NODE EDITOR"));
 const picker=make("select","ctx-input");controls.append(picker);
 const labels={session_source:"+ Source",selector:"+ Selector",summarize:"+ Summary",note:"+ Note",merge:"+ Merge",new_session:"+ New Session"};
 const ports={session_source:[false,true],selector:[true,true],summarize:[true,true],note:[false,true],merge:[true,true],new_session:[true,false]};
-const defaults={session_source:()=>({sessionId:picker.value}),selector:()=>({mode:"selected",segmentIds:[]}),summarize:()=>({text:"",approved:false}),note:()=>({text:""}),merge:()=>({budget:16000}),new_session:()=>({cwd:"",projectId:"all",task:"",budget:16000})};
+const defaults={session_source:()=>({sessionId:picker.value}),selector:()=>({mode:"selected",segmentIds:[]}),summarize:()=>({text:"",approved:false}),note:()=>({text:""}),merge:()=>({budget:16000}),new_session:()=>({cwd:app.getData().sessions.find(s=>s.id===picker.value)?.cwd||app.getData().projects.flatMap(p=>p.folders||[])[0]||"",projectId:app.getData().sessions.find(s=>s.id===picker.value)?.project||"all",task:"",budget:16000})};
 let graph={version:1,id:"main",projectId:"all",revision:0,nodes:[],edges:[]},open=false,dirty=false,selected=null,connecting=null,approval=null,packagePreview=null;
-let pan={x:55,y:40,z:1},drag=null;
+let pan={x:55,y:40,z:1},drag=null,dragWire=false;
 const node=id=>graph.nodes.find(n=>n.id===id);
 const inform=(s,error=false)=>{status.textContent=s;status.classList.toggle("ctx-error",error);};
 const changed=()=>{dirty=true;approval=null;packagePreview=null;};
@@ -68,11 +68,11 @@ function edgesDraw(){svg.replaceChildren();for(const e of graph.edges){const a=n
  p.setAttribute("d","M"+(a.x+206)+" "+(a.y+45)+" C"+(a.x+280)+" "+(a.y+45)+","+(b.x-60)+" "+(b.y+45)+","+b.x+" "+(b.y+45));p.setAttribute("class","ctx-wire");svg.append(p);}}
 function render(){cards.replaceChildren();let w=1100,h=750;for(const n of graph.nodes){w=Math.max(w,n.x+340);h=Math.max(h,n.y+170);}
  world.style.width=w+"px";world.style.height=h+"px";svg.setAttribute("width",w);svg.setAttribute("height",h);
- for(const n of graph.nodes){const card=make("div","ctx-node"+(selected===n.id?" selected":""),"");card.style.left=n.x+"px";card.style.top=n.y+"px";
+ for(const n of graph.nodes){const card=make("div","ctx-node"+(selected===n.id?" selected":""),"");card.dataset.kind=n.type;card.style.left=n.x+"px";card.style.top=n.y+"px";
  card.append(make("div","ctx-head",labels[n.type].slice(2)));
- if(ports[n.type][0]){const inp=make("button","ctx-port ctx-in","●");inp.title="输入端口";card.append(inp);inp.onclick=e=>{e.stopPropagation();if(!connecting)return inform("请先点击源节点的输出端口");
+ if(ports[n.type][0]){const inp=make("button","ctx-port ctx-in","●");inp.title="输入端口";inp.dataset.nodeId=n.id;card.append(inp);inp.onclick=e=>{e.stopPropagation();if(!connecting)return inform("请先点击源节点的输出端口");
  try{wire(connecting,n.id);inform("已连接节点");}catch(err){inform(err.message,true);}connecting=null;render();};}
- if(ports[n.type][1]){const out=make("button","ctx-port ctx-out","●");out.title="输出端口";card.append(out);out.onclick=e=>{e.stopPropagation();connecting=n.id;inform("请选择目标节点输入端口");};}
+ if(ports[n.type][1]){const out=make("button","ctx-port ctx-out","●");out.title="输出端口";card.append(out);out.onpointerdown=e=>{e.stopPropagation();connecting=n.id;dragWire=true;inform("拖动到目标输入端口，或点击另一个输入端口");};out.onclick=e=>{e.stopPropagation();connecting=n.id;inform("请选择目标节点输入端口");};}
  const summary=n.type==="session_source"?app.getData().sessions.find(s=>s.id===n.config.sessionId)?.name||n.config.sessionId:n.type==="selector"?(n.config.segmentIds||[]).length+" segments":n.config.text||n.config.task||"配置节点";
  card.append(make("div","ctx-body",String(summary||"").slice(0,100)));
  card.onclick=()=>{selected=n.id;render();};
@@ -104,7 +104,17 @@ function inspect(){editor.replaceChildren();const n=node(selected);if(!n){editor
  for(const e of graph.edges.filter(e=>e.from===n.id||e.to===n.id)){const row=make("div","ctx-edge",e.from+" → "+e.to);const del=make("button","ctx-btn","×");del.onclick=()=>{graph.edges=graph.edges.filter(x=>x!==e);changed();render();};row.append(del);editor.append(row);}
  const del=make("button","ctx-btn danger","删除节点");editor.append(del);del.onclick=()=>{if(!confirm("删除此节点及连线？"))return;graph.nodes=graph.nodes.filter(x=>x!==n);graph.edges=graph.edges.filter(e=>e.from!==n.id&&e.to!==n.id);selected=null;changed();render();};}
 stage.addEventListener("pointerdown",e=>{if(e.target.closest(".ctx-node"))return;drag={x:e.clientX,y:e.clientY,px:pan.x,py:pan.y};stage.setPointerCapture(e.pointerId);});
-stage.addEventListener("pointermove",e=>{if(!drag)return;pan.x=drag.px+e.clientX-drag.x;pan.y=drag.py+e.clientY-drag.y;applyPan();});stage.addEventListener("pointerup",()=>drag=null);
+stage.addEventListener("pointermove",e=>{if(drag){pan.x=drag.px+e.clientX-drag.x;pan.y=drag.py+e.clientY-drag.y;applyPan();}
+ if(dragWire&&connecting){edgesDraw();const n=node(connecting);if(!n)return;const r=stage.getBoundingClientRect();
+ const px=(e.clientX-r.left-pan.x)/pan.z,py=(e.clientY-r.top-pan.y)/pan.z;
+ const p=document.createElementNS("http://www.w3.org/2000/svg","path");
+ p.setAttribute("d","M"+(n.x+206)+" "+(n.y+45)+" C"+(n.x+290)+" "+(n.y+45)+","+(px-50)+" "+py+","+px+" "+py);
+ p.setAttribute("class","ctx-wire ctx-wire-preview");svg.append(p);}
+});
+stage.addEventListener("pointerup",e=>{drag=null;if(!dragWire)return;dragWire=false;
+ const target=document.elementFromPoint(e.clientX,e.clientY)?.closest(".ctx-in");
+ if(target&&connecting){const from=connecting;connecting=null;try{wire(from,target.dataset.nodeId);inform("已连接节点");}catch(err){inform(err.message,true);}render();}
+ else{edgesDraw();inform("未选中输入端口，可点击目标输入端口完成连线");}});
 stage.addEventListener("wheel",e=>{e.preventDefault();const r=stage.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;const z=Math.min(2.2,Math.max(.25,pan.z*(e.deltaY<0?1.12:.89)));pan.x=x-(x-pan.x)*z/pan.z;pan.y=y-(y-pan.y)*z/pan.z;pan.z=z;applyPan();},{passive:false});
 const applyPan=()=>world.style.transform="translate("+pan.x+"px,"+pan.y+"px) scale("+pan.z+")";
 window.addEventListener("keydown",e=>{if(e.key==="Escape")connecting=null;});
