@@ -132,7 +132,8 @@ def refresh_worker(service, job_id, rid, link, pending):
                 "Linked update did not complete on the expected session")
         with service.lock:
             snapshot = service.links.snapshot(
-                pending["package"], job_id, link["threadId"])
+                pending["package"], job_id, link["threadId"],
+                delivered_hash=pending["promptHash"])
             service.links.advance(rid, pending["linkRevision"],
                                   snapshot["snapshotId"])
             service.runs[job_id]["status"] = "completed"
