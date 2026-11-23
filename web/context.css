@@ -33,3 +33,5 @@
 .ctx-status{flex-shrink:0;background:#172238;border-top:1px solid #303d59;padding:11px 15px;font-size:11px;color:#a3b5d3;min-height:39px;overflow-wrap:anywhere}
 .ctx-status.ctx-error{color:#ffb6aa}
 @media(max-width:1000px){.ctx-editor{width:235px}.ctx-controls{gap:5px}.ctx-controls>.ctx-input{width:125px}.ctx-btn{padding:7px}}
+
+.ctx-segment[hidden]{display:none !important}
