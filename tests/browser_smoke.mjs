@@ -2,11 +2,12 @@
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const root=mkdtempSync(join(tmpdir(),"codex-context-browser-"));
+try {
 const cwd=join(root,"work");mkdirSync(cwd);
 const home=join(root,".codex"),session=join(home,"sessions","2026","11","23");
 mkdirSync(session,{recursive:true});
@@ -105,4 +106,7 @@ try {
   }
 } finally {
   server.kill();
+}
+} finally {
+  rmSync(root,{recursive:true,force:true});
 }
