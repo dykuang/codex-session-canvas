@@ -65,8 +65,10 @@ previewBtn.onclick=async()=>{if(dirty&&!(await save()))return;if(!confirm("明�
  editor.replaceChildren(make("h3","","CONTEXT PACKAGE · REVIEW"),make("p","","来源："+r.package.sources.length+" · 估算 "+r.package.estimatedTokens+" tokens"),
  make("p","ctx-small","SHA256: "+r.package.promptHash));
  const area=make("textarea","ctx-input");area.rows=18;area.value=r.package.prompt;editor.append(area);
+ const editToken=r.approvalToken;
+ area.addEventListener("input",()=>{approval=null;packagePreview=null;inform("预览已修改，必须先点击「应用脱敏修改」后才能创建 Session");});
  const redact=make("button","ctx-btn","应用脱敏修改（仅当前预览）");
- redact.onclick=async()=>{try{const updated=await api("/api/context/redact",{approvalToken:approval,editedPrompt:area.value});
+ redact.onclick=async()=>{try{const updated=await api("/api/context/redact",{approvalToken:editToken,editedPrompt:area.value});
  packagePreview=updated.package;approval=updated.approvalToken;
  inform("脱敏修改已应用 · SHA256 "+packagePreview.promptHash+"，本次预览需重新确认创建");
  }catch(e){inform("脱敏修改未通过校验："+e.message,true);}};
