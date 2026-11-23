@@ -150,4 +150,3 @@ def refresh_worker(service, job_id, rid, link, pending):
     finally:
         with service.lock:
             service.active_links.discard(rid)
-        service._write_manifest(job_id)
