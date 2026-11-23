@@ -29,7 +29,7 @@ function updatePicker(){let old=picker.value;picker.replaceChildren();for(const 
 async function refreshGraphList(){if(!app.getData().live)return;const resp=await fetch("/api/context/graphs");const result=await resp.json();if(!resp.ok)throw Error(result.error);const old=graph.id;graphPicker.replaceChildren();
  const ids=new Set(["main",...result.graphs.map(g=>g.id)]);for(const id of ids){const o=make("option","",id);o.value=id;graphPicker.append(o);}
  if(ids.has(old))graphPicker.value=old;}
-async function load(id){if(!app.getData().live)return;try{const gid=id||graph.id||"main";
+async function load(id){if(!app.getData().live){graph=app.getData().contextGraphPreview||graph;dirty=false;render();inform("只读 HTML 拓扑快照：历史正文、笔记、摘要和任务均未包含。编辑请使用 --serve。");return;}try{const gid=id||graph.id||"main";
  const resp=await fetch("/api/context/graph?id="+encodeURIComponent(gid));const result=await resp.json();if(!resp.ok)throw Error(result.error);
  graph=result.graph;selected=null;dirty=false;approval=null;await refreshGraphList();render();}catch(e){inform("加载失败："+e.message,true);}}
 graphPicker.onchange=()=>{if(dirty&&!confirm("未保存的图修改将丢失，继续切换？")){graphPicker.value=graph.id;return;}load(graphPicker.value);};
