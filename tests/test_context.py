@@ -125,6 +125,27 @@ class ContextTests(unittest.TestCase):
             with self.assertRaises(ContextReadError):
                 segments(home, idstr(99))
 
+    def test_static_html_excludes_context_notes_summaries_and_task(self):
+        import canvas
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            graph = graph_for(idstr(40), str(root))
+            graph["nodes"].append({"id": "sum1", "type": "summarize", "x": 0, "y": 30,
+                                   "config": {"text": "CURATED PRIVATE SUMMARY", "approved": True}})
+            store = GraphStore(root / "context-graphs")
+            store.save(graph)
+            output = root / "snapshot.html"
+            rc = canvas.main(["--codex-home", str(root / ".codex"),
+                              "--config", str(root / "projects.json"),
+                              "--output", str(output), "--export"])
+            self.assertEqual(rc, 0)
+            content = output.read_text(encoding="utf-8")
+            self.assertIn("contextGraphPreview", content)
+            self.assertIn("sum1", content)
+            self.assertNotIn("CURATED PRIVATE SUMMARY", content)
+            self.assertNotIn("Human note", content)
+            self.assertNotIn("Do an experiment", content)
+
     def test_summary_requires_approval(self):
         g = graph_for(idstr(13), "/project")
         g["nodes"].insert(-1, {"id": "summary", "type": "summarize", "x": 0, "y": 0, "config": {"text": "Curated", "approved": False}})
