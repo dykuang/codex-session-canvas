@@ -204,10 +204,12 @@ def render_html(data: dict, live: bool) -> str:
     script = (WEB_DIR / "app.js").read_text(encoding="utf-8")
     project_script = (WEB_DIR / "project.js").read_text(encoding="utf-8")
     project_styles = (WEB_DIR / "project.css").read_text(encoding="utf-8")
+    context_script = (WEB_DIR / "context.js").read_text(encoding="utf-8")
+    context_styles = (WEB_DIR / "context.css").read_text(encoding="utf-8")
     init = json.dumps({**data, "live": live}, ensure_ascii=False, separators=(",", ":"))
     init = init.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
-    return (template.replace("/* CSS_INJECTION */", styles + "\n" + project_styles)
-            .replace("/* JS_INJECTION */", script + "\n" + project_script)
+    return (template.replace("/* CSS_INJECTION */", styles + "\n" + project_styles + "\n" + context_styles)
+            .replace("/* JS_INJECTION */", script + "\n" + project_script + "\n" + context_script)
             .replace("__CANVAS_DATA__", init))
 
 
