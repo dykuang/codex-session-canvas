@@ -44,8 +44,13 @@ function show(next){if(next===open)return;if(!next&&dirty&&!confirm("尚有未�
 toggle.onclick=()=>show(!open);
 const projectBtn=document.getElementById("project-graph-toggle");if(projectBtn)projectBtn.addEventListener("click",()=>{if(open)show(false);});
 for(const [kind,label] of Object.entries(labels)){const btn=make("button","ctx-btn",label);controls.append(btn);
- btn.onclick=()=>{if(!app.getData().live)return inform("静态模式不可编辑",true);const id="n"+crypto.randomUUID().replaceAll("-","").slice(0,12);
- graph.nodes.push({id,type:kind,x:90+graph.nodes.length*42,y:85+graph.nodes.length*62,config:defaults[kind]()});changed();selected=id;render();};}
+ btn.onclick=()=>{if(!app.getData().live)return inform("静态模式不可编辑",true);if(kind==="session_source"&&!picker.value)return inform("当前没有可用的本地 Session",true);
+ const id="n"+crypto.randomUUID().replaceAll("-","").slice(0,12);
+ const count=graph.nodes.filter(n=>n.type===kind).length;
+ const xy={session_source:[70,75+count*145],selector:[350,75+count*145],
+ summarize:[630,75+count*145],note:[350,490+count*145],
+ merge:[890,150+count*145],new_session:[1170,150+count*145]}[kind];
+ graph.nodes.push({id,type:kind,x:xy[0],y:xy[1],config:defaults[kind]()});changed();selected=id;render();};}
 const saveBtn=make("button","ctx-btn primary","保存"),previewBtn=make("button","ctx-btn","预览"),runBtn=make("button","ctx-btn","创建 Session"),historyBtn=make("button","ctx-btn","运行记录"),backBtn=make("button","ctx-btn","返回");
 controls.append(saveBtn,previewBtn,runBtn,historyBtn,backBtn);
 historyBtn.onclick=async()=>{try{const r=await fetch("/api/context/runs");const result=await r.json();if(!r.ok)throw Error(result.error);
