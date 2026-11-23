@@ -32,12 +32,32 @@ class ContextService:
             return {"graphs": self.store.list(), "runtimeAvailable": available()}
         if path == "/api/context/graph":
             return {"graph": self.store.get(params.get("id", ["main"])[0])}
+        if path == "/api/context/runs":
+            if not self.manifests.is_dir():
+                return {"runs": []}
+            stored = []
+            for f in sorted(self.manifests.glob("*.json"), reverse=True)[:100]:
+                if f.is_symlink():
+                    continue
+                try:
+                    stored.append(json.loads(f.read_text(encoding="utf-8")))
+                except (OSError, ValueError):
+                    continue
+            return {"runs": stored}
         if path == "/api/context/run":
             rid = params.get("id", [""])[0]
             with self.lock:
                 result = self.runs.get(rid)
             if result is None:
-                raise GraphError("Run not found or local server was restarted")
+                try:
+                    uuid.UUID(rid)
+                    saved = self.manifests / (rid + ".json")
+                    if saved.exists() and not saved.is_symlink():
+                        result = json.loads(saved.read_text(encoding="utf-8"))
+                except (ValueError, OSError):
+                    pass
+            if result is None:
+                raise GraphError("Run not found")
             return {"run": dict(result)}
         raise GraphError("Unknown Context Graph endpoint")
 
@@ -47,9 +67,11 @@ class ContextService:
         if not isinstance(body, dict):
             raise GraphError("Request must be a JSON object")
         if path == "/api/context/graph":
-            return {"graph": self.store.save(body.get("graph"))}
+            with self.lock:
+                return {"graph": self.store.save(body.get("graph"))}
         if path == "/api/context/delete":
-            self.store.delete(body.get("id"), body.get("revision"))
+            with self.lock:
+                self.store.delete(body.get("id"), body.get("revision"))
             return {"ok": True}
         if path == "/api/context/source":
             if body.get("consent") is not True:
