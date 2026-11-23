@@ -52,7 +52,7 @@ def evaluate(raw, codex_home, known_sessions, *, consent=False):
                     if mode == "references":
                         # File names only: never dereference arbitrary mentioned paths.
                         # Names are unverified claims from untrusted historical text.
-                        pattern = r"(?<![A-Za-z0-9_])(?:[A-Za-z]:[\\/]|/)?(?:[A-Za-z0-9_.-]+[\\/])*[A-Za-z0-9_.-]+\\.(?:py|js|jsx|ts|tsx|md|json|yaml|yml|toml|txt|rs|go|java|cpp|c|h|html|css|sql)\\b"
+                        pattern = r"(?<![A-Za-z0-9_])(?:[A-Za-z]:[\\/]|/)?(?:[A-Za-z0-9_.-]+[\\/])*[A-Za-z0-9_.-]+\.(?:py|js|jsx|ts|tsx|md|json|yaml|yml|toml|txt|rs|go|java|cpp|c|h|html|css|sql)\b"
                         for ref in dict.fromkeys(re.findall(pattern, item["text"], flags=re.I)):
                             parts.append({"sourceId": sid, "segmentId": item["id"],
                                           "role": "file-reference",
