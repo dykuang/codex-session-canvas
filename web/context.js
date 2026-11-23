@@ -65,6 +65,10 @@ previewBtn.onclick=async()=>{if(dirty&&!(await save()))return;if(!confirm("明�
  editor.replaceChildren(make("h3","","CONTEXT PACKAGE · REVIEW"),make("p","","来源："+r.package.sources.length+" · 估算 "+r.package.estimatedTokens+" tokens"),
  make("p","ctx-small","SHA256: "+r.package.promptHash));
  const area=make("textarea","ctx-input");area.rows=18;area.value=r.package.prompt;area.readOnly=true;editor.append(area);
+ const copy=make("button","ctx-btn","复制预览内容（手动创建备用方案）");
+ copy.onclick=async()=>{try{await navigator.clipboard.writeText(r.package.prompt);inform("已复制预览内容；可手动粘贴到新 Codex Session");}
+ catch{area.focus();area.select();inform("请按 Ctrl+C 复制选中的内容");}};
+ editor.append(copy);
  editor.append(make("p","ctx-small","请检查敏感内容。修改源节点后重新预览；执行之前还需再次确认。"));
  inform("预览已生成，尚未创建 Codex Session。");
  }catch(e){inform("预览失败："+e.message,true);}};
