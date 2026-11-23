@@ -278,17 +278,22 @@ def main(argv=None) -> int:
     # summaries or initial task are embedded in standalone HTML exports.
     from context_graph import GraphStore
     store = GraphStore(args.config.expanduser().parent / "context-graphs")
+    snapshots = {}
     try:
-        snapshot = store.get("main")
-        data["contextGraphPreview"] = {
-            **snapshot,
-            "nodes": [{**node, "config": {
-                key: value for key, value in node["config"].items()
-                if key not in ("text", "task")
-            }} for node in snapshot["nodes"]]
-        }
+        for item in store.list():
+            snapshot = store.get(item["id"])
+            snapshots[snapshot["id"]] = {
+                **snapshot,
+                "nodes": [{**node, "config": {
+                    key: value for key, value in node["config"].items()
+                    if key not in ("text", "task")
+                }} for node in snapshot["nodes"]]
+            }
     except (ValueError, OSError):
-        data["contextGraphPreview"] = None
+        # A damaged optional context graph must not break session export.
+        snapshots = {}
+    data["contextGraphSnapshots"] = snapshots
+    data["contextGraphPreview"] = snapshots.get("main") or next(iter(snapshots.values()), None)
     output.write_text(render_html(data, live=False), encoding="utf-8")
     print(f"Canvas exported: {output}")
     print(f"Sessions: {len(data['sessions'])} | Projects: {len(data['projects'])}")
