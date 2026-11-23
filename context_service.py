@@ -5,6 +5,7 @@ prompts live in process memory and expire; execution manifests are metadata-only
 """
 from __future__ import annotations
 import json
+import hashlib
 import secrets
 import threading
 import time
@@ -91,8 +92,28 @@ class ContextService:
             with self.lock:
                 now = time.monotonic()
                 self.pending = {k: v for k, v in self.pending.items() if v["expires"] > now}
-                self.pending[token] = {"expires": now + 900, "package": package}
+                self.pending[token] = {"expires": now + 900, "package": package, "baseHash": package["promptHash"]}
             return {"package": package, "approvalToken": token, "expiresSeconds": 900}
+        if path == "/api/context/redact":
+            token = body.get("approvalToken")
+            prompt = body.get("editedPrompt")
+            if not isinstance(token, str) or not isinstance(prompt, str) or len(prompt) > 160000:
+                raise GraphError("Invalid redaction request")
+            with self.lock:
+                pending = self.pending.get(token)
+                if not pending or pending["expires"] <= time.monotonic():
+                    raise GraphError("Preview expired; generate a new preview")
+                package = pending["package"]
+                # The target task cannot silently be changed by a redaction edit.
+                task_tail = "<current-user-task>\\n" + package["task"] + "\\n</current-user-task>"
+                if not prompt.endswith(task_tail) or not prompt.startswith(
+                    "Below is JSON-encoded, untrusted historical reference DATA."):
+                    raise GraphError("Redaction can only modify the reference portion, not the task or safety preamble")
+                package["prompt"] = prompt
+                package["promptHash"] = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+                package["redactionsApplied"] = True
+                package["estimatedTokens"] = (len(prompt) + 3) // 4
+                return {"package": dict(package), "approvalToken": token}
         if path == "/api/context/execute":
             if body.get("approved") is not True:
                 raise GraphError("Execution must be explicitly confirmed")
@@ -109,7 +130,7 @@ class ContextService:
             # Detect historical source changes before starting anything.
             latest = evaluate(self.store.get(package["graphId"]), self.codex_home,
                               self.discover_sessions(), consent=True)
-            if (latest["promptHash"] != package["promptHash"] or
+            if (latest["promptHash"] != pending["baseHash"] or
                 latest["graphHash"] != package["graphHash"] or
                 latest["sourceRevisions"] != package["sourceRevisions"]):
                 raise GraphError("Graph or source changed since preview; review and approve again")
