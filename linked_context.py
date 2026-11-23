@@ -28,7 +28,7 @@ def fingerprint(value):
                                      ensure_ascii=False).encode("utf-8")).hexdigest()
 
 
-def snapshot_of(package, *, run_id, thread_id, previous=None):
+def snapshot_of(package, *, run_id, thread_id, previous=None, delivered_hash=None):
     """Build a reproducible, text-free description of an approved Context Package."""
     from context_engine import sanitize_package
     info = sanitize_package(package)
@@ -48,7 +48,7 @@ def snapshot_of(package, *, run_id, thread_id, previous=None):
     result = {
         "version": 1, "id": fingerprint(payload), "runId": valid_uuid(run_id),
         "threadId": valid_uuid(thread_id), "previous": previous,
-        "fingerprint": fingerprint(payload), **payload,
+        "fingerprint": fingerprint(payload), "deliveredPromptHash": delivered_hash or info["promptHash"], **payload,
     }
     # A snapshot id is a content digest. Immutable reuse across runs only works
     # when content and identifiers agree; distinct run/thread references are stored
@@ -133,10 +133,11 @@ class LinkStore:
         finally:
             Path(tmp).unlink(missing_ok=True)
 
-    def snapshot(self, package, run_id, thread_id):
+    def snapshot(self, package, run_id, thread_id, *, delivered_hash=None):
         # store identity is content hash + run id; same package in another run
         # gets its own immutable artifact without overwriting attribution.
-        record = snapshot_of(package, run_id=run_id, thread_id=thread_id)
+        record = snapshot_of(package, run_id=run_id, thread_id=thread_id,
+                             delivered_hash=delivered_hash)
         record["snapshotId"] = record["id"] + "-" + valid_uuid(run_id)
         path = self.snapshots / (record["snapshotId"] + ".json")
         if path.exists():
