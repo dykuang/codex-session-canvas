@@ -88,15 +88,24 @@ class ContextHttpTests(unittest.TestCase):
                     token = html.split("csrf=")[1].split("<")[0]
 
                     def post(route, payload, *, origin=True, token_value=token):
-                        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
                         headers = {"Content-Type": "application/json", "X-Canvas-CSRF": token_value,
                                    "Origin": "http://127.0.0.1:" + str(port) if origin else "https://evil.example"}
-                        conn.request("POST", route, json.dumps(payload), headers=headers)
-                        r = conn.getresponse()
-                        status = r.status
-                        body = json.loads(r.read())
-                        conn.close()
-                        return status, body
+                        # Windows CI occasionally aborts a loopback connection
+                        # before the HTTP handler sees it; retry fresh sockets,
+                        # but never retry application HTTP errors or side effects.
+                        for attempt in range(3):
+                            conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+                            try:
+                                conn.request("POST", route, json.dumps(payload), headers=headers)
+                                r = conn.getresponse()
+                                status = r.status
+                                body = json.loads(r.read())
+                                return status, body
+                            except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+                                if attempt == 2: raise
+                                time.sleep(.1)
+                            finally:
+                                conn.close()
 
                     code, _ = post("/api/context/source", {"consent": True, "sessionId": sid}, origin=False)
                     self.assertEqual(403, code)
