@@ -12,6 +12,8 @@ const editor=make("aside","ctx-editor"),status=make("div","ctx-status","Context 
 overlay.append(controls,stage,editor,status);svg.classList.add("ctx-lines");world.append(svg,cards);stage.append(world);
 controls.append(make("strong","","CONTEXT NODE EDITOR"));
 const picker=make("select","ctx-input");controls.append(picker);
+const graphPicker=make("select","ctx-input");graphPicker.title="当前 Context Graph";controls.append(graphPicker);
+const createGraphBtn=make("button","ctx-btn","+ Graph");controls.append(createGraphBtn);
 const labels={session_source:"+ Source",selector:"+ Selector",summarize:"+ Summary",note:"+ Note",merge:"+ Merge",new_session:"+ New Session"};
 const ports={session_source:[false,true],selector:[true,true],summarize:[true,true],note:[false,true],merge:[true,true],new_session:[true,false]};
 const defaults={session_source:()=>({sessionId:picker.value}),selector:()=>({mode:"selected",segmentIds:[]}),summarize:()=>({text:"",approved:false}),note:()=>({text:""}),merge:()=>({budget:16000}),new_session:()=>({cwd:app.getData().sessions.find(s=>s.id===picker.value)?.cwd||app.getData().projects.flatMap(p=>p.folders||[])[0]||"",projectId:app.getData().sessions.find(s=>s.id===picker.value)?.project||"all",task:"",budget:16000})};
@@ -24,7 +26,16 @@ async function api(endpoint,body){if(!app.getData().live||app.getData().demo)thr
  const resp=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json","X-Canvas-CSRF":app.getData().csrfToken},body:JSON.stringify(body)});
  const result=await resp.json();if(!resp.ok)throw Error(result.error||resp.status);return result;}
 function updatePicker(){let old=picker.value;picker.replaceChildren();for(const s of app.getData().sessions){const o=make("option","",s.name+" · "+s.id.slice(0,8));o.value=s.id;picker.append(o);}if([...picker.options].some(x=>x.value===old))picker.value=old;}
-async function load(){if(!app.getData().live)return;try{const resp=await fetch("/api/context/graph?id=main");const result=await resp.json();if(!resp.ok)throw Error(result.error);graph=result.graph;dirty=false;render();}catch(e){inform("加载失败："+e.message,true);}}
+async function refreshGraphList(){if(!app.getData().live)return;const resp=await fetch("/api/context/graphs");const result=await resp.json();if(!resp.ok)throw Error(result.error);const old=graph.id;graphPicker.replaceChildren();
+ const ids=new Set(["main",...result.graphs.map(g=>g.id)]);for(const id of ids){const o=make("option","",id);o.value=id;graphPicker.append(o);}
+ if(ids.has(old))graphPicker.value=old;}
+async function load(id){if(!app.getData().live)return;try{const gid=id||graph.id||"main";
+ const resp=await fetch("/api/context/graph?id="+encodeURIComponent(gid));const result=await resp.json();if(!resp.ok)throw Error(result.error);
+ graph=result.graph;selected=null;dirty=false;approval=null;await refreshGraphList();render();}catch(e){inform("加载失败："+e.message,true);}}
+graphPicker.onchange=()=>{if(dirty&&!confirm("未保存的图修改将丢失，继续切换？")){graphPicker.value=graph.id;return;}load(graphPicker.value);};
+createGraphBtn.onclick=()=>{if(dirty)return inform("请先保存当前图",true);const id=prompt("新 Context Graph ID（字母、数字、-、_、.）");if(!id)return;
+ if(!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$/.test(id))return inform("Graph ID 不合法",true);
+ graph={version:1,id,projectId:"all",revision:0,nodes:[],edges:[]};selected=null;changed();render();inform("新图尚未保存，点击保存");};
 function show(next){if(next===open)return;if(!next&&dirty&&!confirm("尚有未保存的 Context Graph 修改，确定离开？"))return;
  if(next){const p=document.getElementById("project-graph");if(p&&!p.hidden){document.getElementById("project-graph-toggle").click();if(!p.hidden)return;}}
  open=next;overlay.hidden=!next;document.getElementById("board").style.display=next?"none":"";
@@ -35,9 +46,14 @@ const projectBtn=document.getElementById("project-graph-toggle");if(projectBtn)p
 for(const [kind,label] of Object.entries(labels)){const btn=make("button","ctx-btn",label);controls.append(btn);
  btn.onclick=()=>{if(!app.getData().live)return inform("静态模式不可编辑",true);const id="n"+crypto.randomUUID().replaceAll("-","").slice(0,12);
  graph.nodes.push({id,type:kind,x:90+graph.nodes.length*42,y:85+graph.nodes.length*62,config:defaults[kind]()});changed();selected=id;render();};}
-const saveBtn=make("button","ctx-btn primary","保存"),previewBtn=make("button","ctx-btn","预览"),runBtn=make("button","ctx-btn","创建 Session"),backBtn=make("button","ctx-btn","返回");
-controls.append(saveBtn,previewBtn,runBtn,backBtn);backBtn.onclick=()=>show(false);
-async function save(){try{const r=await api("/api/context/graph",{graph});graph=r.graph;dirty=false;approval=null;inform("已保存 Context Graph · revision "+graph.revision);return true;}catch(e){inform("保存失败："+e.message,true);return false;}}
+const saveBtn=make("button","ctx-btn primary","保存"),previewBtn=make("button","ctx-btn","预览"),runBtn=make("button","ctx-btn","创建 Session"),historyBtn=make("button","ctx-btn","运行记录"),backBtn=make("button","ctx-btn","返回");
+controls.append(saveBtn,previewBtn,runBtn,historyBtn,backBtn);
+historyBtn.onclick=async()=>{try{const r=await fetch("/api/context/runs");const result=await r.json();if(!r.ok)throw Error(result.error);
+ editor.replaceChildren(make("h3","","CONTEXT RUN HISTORY"));for(const run of result.runs){const row=make("div","ctx-edge");
+ row.append(make("span","",run.status+" · "+(run.threadId||"pending")+" · "+run.graphId));
+ const btn=make("button","ctx-btn","复制 ID");btn.onclick=()=>navigator.clipboard.writeText(run.threadId||run.id);row.append(btn);editor.append(row);}
+ if(!result.runs.length)editor.append(make("p","","没有历史执行记录"));}catch(e){inform("记录读取失败："+e.message,true);}};backBtn.onclick=()=>show(false);
+async function save(){try{const r=await api("/api/context/graph",{graph});graph=r.graph;dirty=false;approval=null;await refreshGraphList();inform("已保存 Context Graph · revision "+graph.revision);return true;}catch(e){inform("保存失败："+e.message,true);return false;}}
 saveBtn.onclick=save;
 previewBtn.onclick=async()=>{if(dirty&&!(await save()))return;if(!confirm("明确读取已连接的历史 Session 内容，用于本次预览？"))return;
  try{const r=await api("/api/context/preview",{graphId:graph.id,consent:true});approval=r.approvalToken;packagePreview=r.package;
