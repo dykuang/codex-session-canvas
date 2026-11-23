@@ -204,10 +204,12 @@ def render_html(data: dict, live: bool) -> str:
     script = (WEB_DIR / "app.js").read_text(encoding="utf-8")
     project_script = (WEB_DIR / "project.js").read_text(encoding="utf-8")
     project_styles = (WEB_DIR / "project.css").read_text(encoding="utf-8")
+    context_script = (WEB_DIR / "context.js").read_text(encoding="utf-8")
+    context_styles = (WEB_DIR / "context.css").read_text(encoding="utf-8")
     init = json.dumps({**data, "live": live}, ensure_ascii=False, separators=(",", ":"))
     init = init.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
-    return (template.replace("/* CSS_INJECTION */", styles + "\n" + project_styles)
-            .replace("/* JS_INJECTION */", script + "\n" + project_script)
+    return (template.replace("/* CSS_INJECTION */", styles + "\n" + project_styles + "\n" + context_styles)
+            .replace("/* JS_INJECTION */", script + "\n" + project_script + "\n" + context_script)
             .replace("__CANVAS_DATA__", init))
 
 
@@ -272,6 +274,26 @@ def main(argv=None) -> int:
     output.parent.mkdir(parents=True, exist_ok=True)
     from project_bridge import project_data
     data = project_data(build_data(codex_home, args.project, args.demo, args.session), args.config, args.project, args.session, args.demo)
+    # Read-only topology snapshot: no historic turns, user-authored notes,
+    # summaries or initial task are embedded in standalone HTML exports.
+    from context_graph import GraphStore
+    store = GraphStore(args.config.expanduser().parent / "context-graphs")
+    snapshots = {}
+    try:
+        for item in store.list():
+            snapshot = store.get(item["id"])
+            snapshots[snapshot["id"]] = {
+                **snapshot,
+                "nodes": [{**node, "config": {
+                    key: value for key, value in node["config"].items()
+                    if key not in ("text", "task")
+                }} for node in snapshot["nodes"]]
+            }
+    except (ValueError, OSError):
+        # A damaged optional context graph must not break session export.
+        snapshots = {}
+    data["contextGraphSnapshots"] = snapshots
+    data["contextGraphPreview"] = snapshots.get("main") or next(iter(snapshots.values()), None)
     output.write_text(render_html(data, live=False), encoding="utf-8")
     print(f"Canvas exported: {output}")
     print(f"Sessions: {len(data['sessions'])} | Projects: {len(data['projects'])}")

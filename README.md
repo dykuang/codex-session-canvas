@@ -110,7 +110,7 @@ The default registry is `~/.codex-session-canvas/projects.json`. Override with `
 
 Projects have stable user-defined IDs, independent of folder paths. For matching, Windows drive and UNC paths are case-insensitive; POSIX paths retain case sensitivity. When folder mappings are nested, the longest valid directory-prefix wins. An unmatched session remains in the automatically discovered Git-root/cwd grouping. Empty configured projects remain visible. One Session has one primary logical project but many sessions may share a project. The config persists independently of browser-local Session annotations and node positions. A `projects.json.bak` backup is retained on subsequent saves.
 
-A standalone `--export` HTML snapshot is **read-only** for project settings; use **导出 JSON** and import it by placing the validated JSON at the `--config` path (or use the local server editor). Keep project paths and session names private. The server binds only to `127.0.0.1`; write requests require the exact loopback Origin, JSON content type and a per-process CSRF token. Neither the editor nor project relation edges read chat bodies. The v0.3 Context Node Editor is a separate roadmap item.
+A standalone `--export` HTML snapshot is **read-only** for project settings; use **导出 JSON** and import it by placing the validated JSON at the `--config` path (or use the local server editor). Keep project paths and session names private. The server binds only to `127.0.0.1`; write requests require the exact loopback Origin, JSON content type and a per-process CSRF token. Neither the editor nor project relation edges read chat bodies. The v0.3 Context Graph is implemented on the v0.3-v0.4 development branch, and still requires validation before release.
 
 **Windows development verification** (PowerShell):
 
@@ -120,6 +120,59 @@ python -m unittest discover -s tests -v
 ```
 
 For backward compatibility, launch with no registry and the original Session Graph works. To revert project grouping, back up and remove `projects.json`; existing Codex session files are never modified.
+
+## v0.3 + v0.4 (development branch) — Context Node Editor and executable workflow
+
+**Important:** v0.3/v0.4 are under active development. Before a release, verify the installed Windows Codex CLI's exact App Server protocol and check CI. Do not assume this branch has been merged into main.
+
+Start the **local server** (required for graph edits and reading selected history):
+
+```powershell
+python .\canvas.py --serve --open --project (Get-Location).Path
+```
+
+Click **Context Graph** at the top of the Session Canvas. The third relationship layer is independent of Project DAG successor edges and of Fork/parent/manual Session links. Create a graph using **+ Graph** or edit the default **main** graph. The graph is stored separately as `~/.codex-session-canvas/context-graphs/<graph-id>.json` with a version/revision and atomic save. It stores node settings, project IDs, source session UUIDs, selection IDs, human-authored notes/approved summaries and wire topology, **not raw historical turns** by default.
+
+A validated A1+B2+A3 → Selector/Summary/Note → Merge → new Session C example is available in [`examples/context-three-source.json`](examples/context-three-source.json); replace the example Session UUIDs and target working folder before using it. The file contains no historical conversation bodies.
+
+### Typical cross-project workflow
+
+1. Select a historical Session A1 from the Session dropdown, click **+ Source**. Repeat for B2 and A3; add one **Selector** for each, then **Merge** and **New Session**.
+2. Connect **Source output → Selector input**, **Selector output → Merge input** (three sources), **Merge output → New Session input**. Click output then input, or drag between sockets.
+3. Select a Selector and explicitly click **授权读取**. The local reader only fetches that Session after approval, returns bounded user/assistant text segments, and excludes system messages and tool execution/output by default. Tick chosen turn IDs, or explicitly choose the limited **all** mode.
+4. Add **Context Note** for extra instructions; optionally insert an editable **Summarize** node after a Selector. Summaries are **manual/curated** in this release, not an automatically connected paid model call; mark them approved.
+5. Configure a Merge budget, then select a **real destination working folder** and initial task in **New Session**. The destination folder is one folder from the logical project, not the entire folder set.
+6. **保存 → 预览**. Inspect the **exact** untrusted-reference prompt text, source UUIDs, estimated token budget and SHA-256 fingerprint. No context is sent to Codex before final confirmation. Edit/exclude sensitive material in source/selector/note/summary and re-preview, or directly redact the Context preview and click **应用脱敏修改** to rebind the one-time approval to the edited hash. Editing the preview invalidates prior approval, and the task/safety preamble cannot be silently changed through the redaction endpoint.
+7. **创建 Session** requires a *second confirmation* and a short-lived, one-time server approval token. The server re-checks source revisions and package hash. If the Codex CLI App Server is available, it invokes `thread/start` and `turn/start` with the approved snapshot, **read-only sandbox**, and a supplied task in the selected directory. The UI displays actual thread/turn statuses, never inventing a UUID.
+8. **运行记录** shows metadata-only manifests with the target thread ID, source UUIDs/revisions, graph/package hash and status. On restart, records remain available; graph config and manifests are distinct from Codex rollouts.
+
+### Security and runtime boundaries
+
+- Merely opening/searching/refreshing Project, Session or Context Graph does **not** read chat bodies. Reading requires user action and same-origin, CSRF-protected localhost POST. No cloud backend or API key is needed to run the canvas, but using Codex to execute a new turn requires a working installed/authenticated Codex CLI.
+- Historical material may include inaccurate or malicious instructions; it is supplied as **untrusted reference data** inside the explicit new-user-task prompt. This is not a complete technical prompt-injection guarantee. Review and redact confidential content before approving.
+- The local App Server adapter is version-dependent. It launches a child `codex app-server` with safe argv (no shell commands from graph data). It can report an actual thread creation followed by a failed or timed-out turn; inspect Codex before retrying to avoid duplicate sessions. The integration does **not** claim to focus an existing Codex Desktop tab.
+- Context bodies live in process memory only while preview/approval executes. Approval expires after 15 minutes or first execution. Exports are metadata-only by default and static HTML cannot execute workflows.
+- Source fetching is limited to known local Codex session UUIDs and first 32 MiB per selected rollout; compressed archives need `zstandard`. Cloud-only sessions are not supported by the JSONL fallback.
+- The runtime defaults to `sandbox: readOnly`, `approvalPolicy: never`, so the initial turn cannot silently modify repository files. A future explicit permission selection is required for code-changing tasks.
+- To roll back, install the previous v0.2 Skill and avoid running this branch. Context graph data and provenance are isolated under their own folders; v0.2 `projects.json` remains unchanged.
+
+### Validation
+
+```powershell
+python -m unittest discover -s tests -v
+node --check web/context.js
+```
+
+The cross-platform GitHub Actions workflow checks Linux and Windows against Python 3.11 and Node 22. A real Codex Desktop/CLI integration check is separate and must run on a configured Windows machine.
+
+For that final Windows acceptance check, use the following **explicit opt-in** smoke command from a PowerShell prompt with an authenticated Codex CLI installed:
+
+```powershell
+python .\scripts\verify_codex_runtime.py
+python .\scripts\verify_codex_runtime.py --run
+```
+
+The first command only prints whether Codex is on PATH. The second creates **one real, read-only test session** in a temporary folder, may use plan quota, prints the actual thread UUID and status, and never modifies your project. Do not assume a successful mocked CI test is equivalent to this live Windows verification.
 
 ## Limitations
 

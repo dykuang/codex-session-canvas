@@ -1,0 +1,41 @@
+name: Context Graph checks
+on:
+  push:
+    branches: [v0.3-v0.4-context-graph]
+  pull_request:
+    branches: [main]
+jobs:
+  python-and-ui:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Python unit and integration tests
+        run: python -m unittest discover -s tests -v
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Browser JavaScript syntax
+        run: |
+          node --check web/app.js
+          node --check web/project.js
+          node --check web/context.js
+      - name: Static HTML smoke generation
+        run: python canvas.py --demo --export --output demo.html
+      - name: Codex runtime adapter availability (no real session)
+        run: python scripts/verify_codex_runtime.py
+
+      - name: Install Playwright browser (Linux only)
+        if: runner.os == 'Linux'
+        run: |
+          npm install --no-save playwright
+          npx playwright install chromium
+      - name: Browser context workflow smoke (Linux only)
+        if: runner.os == 'Linux'
+        run: node tests/browser_smoke.mjs
