@@ -106,6 +106,11 @@ try {
   }
 } finally {
   server.kill();
+  await new Promise(resolve=>{
+    if(server.exitCode!==null||server.signalCode!==null)return resolve();
+    server.once("exit",resolve);
+    setTimeout(resolve,2000).unref();
+  });
 }
 } finally {
   rmSync(root,{recursive:true,force:true});
