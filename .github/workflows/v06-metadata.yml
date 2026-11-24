@@ -1,0 +1,34 @@
+name: v0.6 ChatGPT metadata regression
+on:
+  push:
+    branches: [feature/v0.6.0-chatgpt-metadata]
+  pull_request:
+    branches: [main]
+jobs:
+  metadata-and-legacy:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: All Python unit and integration tests
+        run: python -m unittest discover -s tests -v
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Browser source syntax
+        run: |
+          node --check web/app.js
+          node --check web/project.js
+          node --check web/context.js
+      - name: Metadata-only demo smoke
+        run: python canvas.py --demo --export --output demo.html
+      - name: Snapshot HTML Windows/Unix smoke
+        run: python canvas.py --demo --chatgpt-snapshot examples/chatgpt-metadata-v1.json --export --output snapshot-demo.html
+      - name: Local runtime adapter check
+        run: python scripts/verify_codex_runtime.py
