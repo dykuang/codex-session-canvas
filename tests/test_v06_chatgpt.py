@@ -125,7 +125,7 @@ class ChatGPTMetadataTests(unittest.TestCase):
             snap.write_text(json.dumps(raw),encoding="utf-8")
             result=merge_chatgpt({"sessions":[],"projects":[{"id":"logical:A","name":"Same","count":0}]},config,snap)
             self.assertEqual("chatgpt:id-1",next(s for s in result["sessions"] if s["id"]=="chatgpt:chat-1")["project"])
-            self.assertEqual("chatgpt:unassigned",next(s for s in result["sessions"] if s["id"]=="chatgpt:chat-2")["project"])
+            self.assertEqual("chatgpt-group:unassigned",next(s for s in result["sessions"] if s["id"]=="chatgpt:chat-2")["project"])
             self.assertTrue(result["chatgptSource"]["warnings"])
 
     def test_mirror_duplicates_rejected_and_old_registry_unchanged(self):
