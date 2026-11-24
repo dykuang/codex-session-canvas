@@ -99,9 +99,9 @@ function render(showEditor=true){
  world.style.width=(widest+130)+'px';world.style.height=(tallest+130)+'px';lines.setAttribute('width',widest+130);lines.setAttribute('height',tallest+130);
  for(const e of graph){const a=coords[e.from],b=coords[e.to];if(!a||!b)continue;const path=document.createElementNS('http://www.w3.org/2000/svg','path');const x1=a.x+235,y1=a.y+53,x2=b.x,y2=b.y+53;path.setAttribute('d',`M${x1} ${y1} C${(x1+x2)/2} ${y1},${(x1+x2)/2} ${y2},${x2} ${y2}`);path.setAttribute('class','pg-edge');lines.append(path);}
  for(const p of projects){const c=el('div','pg-node'+(selected===p.id.replace(/^logical:/,'')?' pg-selected':''));c.style.left=coords[p.id].x+'px';c.style.top=coords[p.id].y+'px';c.dataset.id=p.id;
- const title=el('strong','',p.name);const details=el('small','',(p.folders?.length||0)+' 文件夹 · '+(p.count||0)+' Sessions');const raw=el('small','pg-folder-preview',(p.folders||[]).join(' · ')||'未绑定文件夹');const dock=el('span','pg-port','●');const out=el('span','pg-port pg-out','●');
+ const title=el('strong','',p.name);const details=el('small','',(p.folders?.length||0)+' 文件夹 · '+(p.count||0)+' Sessions / Chats');const raw=el('small','pg-folder-preview',(p.folders||[]).join(' · ')||'未绑定文件夹');const dock=el('span','pg-port','●');const out=el('span','pg-port pg-out','●');
  c.append(dock,title,out,details,raw);
- c.addEventListener('click',()=>{if(p.displayOnly){toast('自动发现的文件夹可先通过“新建项目”显式绑定',true);return;}select(p.id.slice(8));});
+ c.addEventListener('click',()=>{if(p.displayOnly){toast(p.source==='chatgpt'?'云端项目只读：双击查看会话，或创建逻辑项目并填写已验证的项目 ID':'自动发现的文件夹可先通过“新建项目”显式绑定',true);return;}select(p.id.slice(8));});
  c.addEventListener('dblclick',()=>{if(p.displayOnly){switchMode(false);existing.selectProject(p.id);return;}if(isDirty()){toast('先保存项目配置再进入 Session 视图',true);return;}switchMode(false);existing.selectProject(p.id);});
  cards.append(c);}
  if(showEditor)renderEditor();
