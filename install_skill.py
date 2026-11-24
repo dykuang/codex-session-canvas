@@ -15,8 +15,10 @@ if dest.exists():
         p.error(f'Will not overwrite existing skill at {dest}; pass --force to replace')
     shutil.rmtree(dest)
 dest.mkdir(parents=True,exist_ok=False)
-for item in ['SKILL.md','canvas.py','project_registry.py','project_bridge.py','project_server.py','context_graph.py','context_reader.py','context_engine.py','context_service.py','codex_runtime.py','linked_context.py','linked_refresh.py','chatgpt_metadata.py','chatgpt_bridge.py']:
-    shutil.copy2(root/item,dest/item)
+for item in ['SKILL.md','canvas.py','project_registry.py','project_bridge.py','project_server.py','context_graph.py','context_reader.py','context_engine.py','context_service.py','codex_runtime.py','linked_context.py','linked_refresh.py','chatgpt_metadata.py','chatgpt_bridge.py','docs/chatgpt-snapshot-v1.md','docs/v0.6-access-decision.md']:
+    target=dest/item
+    target.parent.mkdir(parents=True,exist_ok=True)
+    shutil.copy2(root/item,target)
 shutil.copytree(root/'web',dest/'web')
 print(f'Codex skill installed: {dest}')
 print('In Codex, invoke $codex-session-canvas (session canvas skill)')
