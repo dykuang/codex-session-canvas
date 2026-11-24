@@ -35,7 +35,7 @@ def merge_chatgpt(base: dict, registry_path: Path, snapshot_path: Path | None) -
                     "chatgptProjectId": p["id"]}
             projects.append(item)
             existing[key] = item
-    unassigned = "chatgpt:unassigned"
+    unassigned = "chatgpt-group:unassigned"
     for c in source["conversationRecords"]:
         pid = cloud_projects.get(c["projectId"], unassigned)
         if pid not in existing:
