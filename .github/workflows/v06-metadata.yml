@@ -32,3 +32,14 @@ jobs:
         run: python canvas.py --demo --chatgpt-snapshot examples/chatgpt-metadata-v1.json --export --output snapshot-demo.html
       - name: Local runtime adapter check
         run: python scripts/verify_codex_runtime.py
+
+      - name: Install browser runner (Linux only)
+        if: runner.os == 'Linux'
+        run: |
+          npm install --no-save playwright
+          npx playwright install chromium
+      - name: Browser integration and privacy smoke (Linux only)
+        if: runner.os == 'Linux'
+        run: |
+          node tests/browser_smoke.mjs
+          node tests/browser_v06.mjs
