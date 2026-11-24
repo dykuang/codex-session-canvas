@@ -63,10 +63,10 @@ try{
   assert.equal(await page.locator(".edge.reference").count(),2);
   writeFileSync(sourceFile,JSON.stringify(source("Renamed Cloud A")));
   await page.locator("#refresh").click();
-  assert(await page.locator(".node.cloud").getByText("Renamed Cloud A").count());
+  await page.locator(".node.cloud").getByText("Renamed Cloud A").waitFor({timeout:10000});
   writeFileSync(sourceFile,JSON.stringify({bad:"SECRET CONTENT"}));
   await page.locator("#refresh").click();
-  assert((await page.locator("#status").textContent()).includes("INVALID"));
+  await page.waitForFunction(()=>document.querySelector("#status")?.textContent.includes("INVALID"),null,{timeout:10000});
   assert.equal(await page.locator(".node:not(.cloud)").count(),1);
   assert.equal(await page.locator(".node.cloud").count(),0);
   assert.equal(errors.length,0,errors.join("\n"));
