@@ -25,7 +25,7 @@ const changed=()=>{dirty=true;approval=null;packagePreview=null;};
 async function api(endpoint,body){if(!app.getData().live||app.getData().demo)throw Error("请使用本地 --serve 模式");
  const resp=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json","X-Canvas-CSRF":app.getData().csrfToken},body:JSON.stringify(body)});
  const result=await resp.json();if(!resp.ok)throw Error(result.error||resp.status);return result;}
-function updatePicker(){let old=picker.value;picker.replaceChildren();for(const s of app.getData().sessions){const o=make("option","",s.name+" · "+s.id.slice(0,8));o.value=s.id;picker.append(o);}if([...picker.options].some(x=>x.value===old))picker.value=old;}
+function updatePicker(){let old=picker.value;picker.replaceChildren();for(const s of app.getData().sessions.filter(s=>s.source!=="chatgpt")){const o=make("option","",s.name+" · "+s.id.slice(0,8));o.value=s.id;picker.append(o);}if([...picker.options].some(x=>x.value===old))picker.value=old;}
 async function refreshGraphList(){if(!app.getData().live)return;const resp=await fetch("/api/context/graphs");const result=await resp.json();if(!resp.ok)throw Error(result.error);const old=graph.id;graphPicker.replaceChildren();
  const ids=new Set(["main",...result.graphs.map(g=>g.id)]);for(const id of ids){const o=make("option","",id);o.value=id;graphPicker.append(o);}
  if(ids.has(old))graphPicker.value=old;}
