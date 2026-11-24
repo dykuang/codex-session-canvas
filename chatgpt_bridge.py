@@ -64,6 +64,8 @@ def merge_chatgpt(base: dict, registry_path: Path, snapshot_path: Path | None) -
         project["count"] = counts.get(project["id"], 0)
     data["sessions"] = sessions
     data["projects"] = projects
+    if data.get("focus") == "session:unknown" and source["conversationRecords"]:
+        data["focus"] = "all"
     data["cloudRelationships"] = source["relationships"]
     data["chatgptSource"] = {
         k: source[k] for k in ("status", "complete", "source", "warnings", "pageCount")
