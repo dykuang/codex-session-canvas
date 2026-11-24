@@ -1,0 +1,89 @@
+name: Publish v0.6.0
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/release-v0.6.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-checks:
+    name: v0.6.0 acceptance (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run all Python and legacy regression tests
+        run: python -m unittest discover -s tests -v
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Syntax-check all browser scripts
+        run: |
+          node --check web/app.js
+          node --check web/project.js
+          node --check web/context.js
+      - name: Build and CRC-check v0.6.0 distribution ZIP
+        run: python scripts/build_release.py
+      - name: Generate metadata-only static demonstration
+        run: |
+          python canvas.py --demo --export --output demo.html
+          python canvas.py --demo --chatgpt-snapshot examples/chatgpt-metadata-v1.json --export --output metadata-demo.html
+      - name: Install Playwright Chromium on Ubuntu
+        if: runner.os == 'Linux'
+        run: |
+          npm install --no-save playwright
+          npx playwright install chromium
+      - name: v0.5 and v0.6 browser integration and privacy regression
+        if: runner.os == 'Linux'
+        run: |
+          node tests/browser_smoke.mjs
+          node tests/browser_v06.mjs
+
+  publish:
+    name: Publish official GitHub v0.6.0 release and ZIP asset
+    needs: release-checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build official ZIP with CRC check
+        run: python scripts/build_release.py
+      - name: Refuse to overwrite an existing tag or Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view v0.6.0 >/dev/null 2>&1; then
+            echo "Release v0.6.0 already exists; refusing to replace it."
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin 'refs/tags/v0.6.0' >/dev/null; then
+            echo "Tag v0.6.0 already exists; refusing to replace it."
+            exit 1
+          fi
+      - name: Create release and attach ZIP
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create v0.6.0 dist/codex-session-canvas-v0.6.0.zip \
+            --target "${GITHUB_SHA}" \
+            --title "Codex Session Canvas v0.6.0" \
+            --notes-file docs/releases/v0.6.0.md \
+            --latest
+      - name: Verify published tag, asset and checksum
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view v0.6.0 --json url,isDraft,isPrerelease,assets,tagName
+          sha256sum dist/codex-session-canvas-v0.6.0.zip
