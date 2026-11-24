@@ -17,7 +17,7 @@ from project_registry import MAX_REGISTRY_BYTES, RegistryError, save_registry
 
 
 def run_server(host: str, port: int, codex_home: Path, focus: str, demo: bool,
-               should_open: bool, session_id: str, registry_path: Path):
+               should_open: bool, session_id: str, registry_path: Path, chatgpt_snapshot: Path | None = None):
     if host != "127.0.0.1":
         raise ValueError("Only 127.0.0.1 can be used for the editing server")
     import canvas
@@ -46,7 +46,8 @@ def run_server(host: str, port: int, codex_home: Path, focus: str, demo: bool,
 
         def _data(self):
             base = canvas.build_data(codex_home, focus, demo, session_id)
-            return project_data(base, registry_path, focus, session_id, demo)
+            from chatgpt_bridge import merge_chatgpt
+            return merge_chatgpt(project_data(base, registry_path, focus, session_id, demo), registry_path, chatgpt_snapshot)
 
         def do_GET(self):
             route = urlsplit(self.path).path
@@ -104,7 +105,7 @@ def run_server(host: str, port: int, codex_home: Path, focus: str, demo: bool,
 
     server = ThreadingHTTPServer((host, port), Handler)
     url = f"http://127.0.0.1:{server.server_address[1]}/"
-    print(f"Codex Session Canvas v0.2: {url}", flush=True)
+    print(f"Codex Session Canvas v0.6: {url}", flush=True)
     if should_open:
         webbrowser.open(url)
     try:
