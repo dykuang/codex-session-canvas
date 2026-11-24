@@ -255,6 +255,7 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Visual Codex session graph (metadata only, no chat contents)")
     parser.add_argument("--codex-home", type=Path, default=Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")))
     parser.add_argument("--config", type=Path, default=Path.home() / ".codex-session-canvas" / "projects.json", help="Versioned logical-project registry")
+    parser.add_argument("--chatgpt-snapshot", type=Path, help="Explicit metadata-only ChatGPT snapshot JSON (not a raw export)")
     parser.add_argument("--project", default="", help="Current project directory (initial focus)")
     parser.add_argument("--session", default=os.environ.get("CODEX_THREAD_ID") or os.environ.get("CODEX_SESSION_ID", ""), help="Current session UUID")
     parser.add_argument("--demo", action="store_true", help="Use example data; no Codex files read")
@@ -267,13 +268,15 @@ def main(argv=None) -> int:
     codex_home = args.codex_home.expanduser().resolve(strict=False)
     if args.serve:
         from project_server import run_server as run_project_server
-        run_project_server("127.0.0.1", args.port, codex_home, args.project, args.demo, args.open, args.session, args.config)
+        run_project_server("127.0.0.1", args.port, codex_home, args.project, args.demo, args.open, args.session, args.config, args.chatgpt_snapshot)
         return 0
     output = args.output or (Path.home() / ".codex-session-canvas" / "index.html")
     output = output.expanduser().resolve(strict=False)
     output.parent.mkdir(parents=True, exist_ok=True)
     from project_bridge import project_data
     data = project_data(build_data(codex_home, args.project, args.demo, args.session), args.config, args.project, args.session, args.demo)
+    from chatgpt_bridge import merge_chatgpt
+    data = merge_chatgpt(data, args.config, args.chatgpt_snapshot)
     # Read-only topology snapshot: no historic turns, user-authored notes,
     # summaries or initial task are embedded in standalone HTML exports.
     from context_graph import GraphStore
