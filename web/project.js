@@ -28,12 +28,15 @@ const editor=el('aside','pg-editor');
 const heading=el('div','pg-editor-heading','PROJECT INSPECTOR');
 const nameLabel=el('label','','名称');const nameInput=el('input','pg-input');nameInput.id='pg-name';
 const idLabel=el('label','','稳定 ID（创建后不可更改）');const idInput=el('input','pg-input');idInput.id='pg-id';
+const cloudLabel=el('label','','ChatGPT 项目 ID（可选，必须来自可信来源）');
+const cloudInput=el('input','pg-input');cloudInput.id='pg-chatgpt-project-id';
+cloudInput.placeholder='例如：chatgpt-project-123（勿按名称猜测）';
 const folderLabel=el('label','','关联文件夹（每行一个绝对路径）');const folderInput=el('textarea','pg-input');folderInput.id='pg-folders';folderInput.rows=5;
 const hint=el('small','','仅编辑逻辑项目配置；不会移动或删除磁盘上的项目文件夹或 Codex Session。');
 const removeBtn=el('button','pg-danger','删除此逻辑项目');
 const linkBtn=el('button','tool-btn','连线 → 选择后继项目');
 const unlinkLabel=el('label','','前驱项目关系');const links=el('div','pg-related');
-editor.append(heading,nameLabel,nameInput,idLabel,idInput,folderLabel,folderInput,hint,linkBtn,unlinkLabel,links,removeBtn);
+editor.append(heading,nameLabel,nameInput,idLabel,idInput,cloudLabel,cloudInput,folderLabel,folderInput,hint,linkBtn,unlinkLabel,links,removeBtn);
 overlay.append(editor);root.append(overlay);
 let open=false,selected=null,linkFrom=null,drag=null;
 let registry={version:1,projects:[],relationships:[]};
@@ -59,8 +62,10 @@ function addProject(){const id=prompt('新项目 ID：字母、数字、点、�
 addBtn.addEventListener('click',addProject);
 function updateSelected(){const p=registry.projects.find(x=>x.id===selected);if(!p)return;
  p.name=nameInput.value; p.folders=folderInput.value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+ if(cloudInput.value.trim())p.chatgptProjectId=cloudInput.value.trim();
+ else delete p.chatgptProjectId;
  render(false);toast('本地草稿已更新，请点击保存');}
-nameInput.addEventListener('change',updateSelected); folderInput.addEventListener('change',updateSelected);
+nameInput.addEventListener('change',updateSelected);folderInput.addEventListener('change',updateSelected);cloudInput.addEventListener('change',updateSelected);
 function select(id){if(linkFrom){if(id===linkFrom)return toast('项目不能继承自身',true);
  if(!registry.relationships.some(e=>e.from===linkFrom&&e.to===id))registry.relationships.push({from:linkFrom,to:id,type:'successor'});
  linkFrom=null;stage.classList.remove('pg-linking');render();toast('已添加待保存的项目继承关系');return;}
@@ -79,7 +84,9 @@ async function save(){if(!data().live||data().demo){toast('静态演示只读：
 saveBtn.addEventListener('click',save);
 function render(showEditor=true){
  cards.replaceChildren();lines.replaceChildren();const all=data().projects||[];
- const projects=[...registry.projects.map(p=>({...p,configured:true,id:projectId(p),count:all.find(q=>q.id===projectId(p))?.count||0})),
+ const projects=[...registry.projects.map(p=>({...p,configured:true,id:projectId(p),
+ name:all.find(q=>q.id===projectId(p))?.name||p.name,
+ count:all.find(q=>q.id===projectId(p))?.count||0})),
  ...all.filter(p=>!p.configured).map(p=>({...p,displayOnly:true}))];
  const graph=registry.relationships.map(e=>({from:projectId({id:e.from}),to:projectId({id:e.to})}));
  const child=new Map(projects.map(p=>[p.id,[]]));const indegree=new Map(projects.map(p=>[p.id,0]));
@@ -100,7 +107,7 @@ function render(showEditor=true){
  if(showEditor)renderEditor();
 }
 function renderEditor(){const p=registry.projects.find(p=>p.id===selected);editor.style.display=p?'flex':'none';if(!p)return;
- nameInput.value=p.name;idInput.value=p.id;idInput.disabled=true;folderInput.value=p.folders.join('\n');links.replaceChildren();
+ nameInput.value=p.name;idInput.value=p.id;idInput.disabled=true;cloudInput.value=p.chatgptProjectId||'';folderInput.value=p.folders.join('\n');links.replaceChildren();
  const incoming=registry.relationships.filter(e=>e.to===selected);if(!incoming.length)links.append(el('small','','暂无前驱项目'));
  for(const edge of incoming){const row=el('div','pg-link-item',edge.from+' → '+edge.to);const del=el('button','','×');del.title='删除这条项目继承边';del.addEventListener('click',()=>{registry.relationships=registry.relationships.filter(e=>e!==edge);render();toast('项目关系已从草稿移除');});row.append(del);links.append(row);}
 }
