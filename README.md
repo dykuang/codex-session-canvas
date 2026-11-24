@@ -1,4 +1,4 @@
-# Codex Session Canvas (v0.2 development)
+# Codex Session Canvas (v0.6 development)
 
 A local, metadata-only visual navigator for Codex sessions, forks and child agents. It reads **only the first `session_meta` line** of each `.jsonl` or compressed `.jsonl.zst` rollout, plus the session-name index. It never parses conversation turns, assistant text or prompts.
 
@@ -263,3 +263,32 @@ Windows and Linux. **A real authenticated Windows Codex Desktop/CLI live run,
 existing-thread resume and opening behavior still require testing on the
 target machine.** Mock success is not proof that the installed Codex runtime
 accepts `thread/resume` for an arbitrary local desktop thread.
+
+
+## ChatGPT metadata snapshots (v0.6, Issue #31–#36)
+
+**No supported direct consumer ChatGPT project/chat-list API has been demonstrated for this standalone Python tool.** It does not use private endpoints, cookies or your account password. A ChatGPT account export may contain **complete conversation bodies** and is not accepted as a metadata snapshot. Do not pass the ZIP or raw `conversations.json` to the import option. See [access decision](docs/v0.6-access-decision.md) and [strict snapshot contract](docs/chatgpt-snapshot-v1.md).
+
+### Windows PowerShell quick start
+
+```powershell
+# Use the same Python interpreter for optional zstandard support and the canvas.
+python -m pip install zstandard
+python .\canvas.py --serve --open --chatgpt-snapshot "C:\\Users\\you\\Documents\\chatgpt-metadata.json"
+```
+
+For a static HTML export, use `python .\canvas.py --export --output .\canvas.html --chatgpt-snapshot .\examples\chatgpt-metadata-v1.json`. The bundled [example](examples/chatgpt-metadata-v1.json) is **synthetic**, intentionally marked incomplete; it does not contain a user's real ChatGPT account data. `--serve` reads the selected snapshot again on every Refresh; it does **not** refresh from a cloud account. Missing/invalid/stale/incomplete snapshot states are visible in the canvas status line. Snapshot IDs, titles, paths and user-supplied relationship evidence may be present in exported HTML, so keep snapshots private.
+
+### Mapping a cloud project to a local mirror
+
+In **Project Graph**, select the logical project and enter its **verified ChatGPT project ID** in the new `ChatGPT 项目 ID` field, then save. Or add `"chatgptProjectId": "<verified-id>"` to the project's existing `~/.codex-session-canvas/projects.json` registry entry. This is strictly optional; old v1 project registries remain valid. Cloud source project **title** is shown when the ID matches, so a mirror like `AI-Skills/Agents` displays by its real name instead of an opaque local folder. Do **not** infer an ID from a matching title or map multiple logical projects to one cloud ID. The imported `projectId` and its title must come from an independently verified authorized source.
+
+Cloud conversations appear as distinct blue-tinged cards with source-qualified identifiers (`chatgpt:<id>`). They coexist with Codex sessions even when raw IDs or titles are identical. Snapshot relationships are displayed **only when they include evidence and both endpoints exist**; missing or undocumented parentage remains unknown. Manual handoff/reference links can be added by choosing a card and `添加手动关系` in the inspector, then clicking a source card; those annotations remain in browser localStorage. An imported cloud card intentionally has **no Codex resume action or fabricated deep link**. Ordinary browsing and refresh read no conversation body.
+
+### Upgrade, rollback and limitations
+
+- Upgrade: install v0.6 files with `python install_skill.py --force` after backing up your installed Skill folder. Back up `~/.codex-session-canvas/projects.json` and any saved context graphs; imported snapshot files are independent.
+- Rollback: restore the prior Skill folder or reinstall v0.5. The optional `chatgptProjectId` field is not understood by older v0.5 registry validation; remove only that field from a backup copy of the registry if rolling back. Preserve original files for recovery.
+- This is **explicit metadata import, not live account synchronization**. `archived`, project membership and provenance are displayed only when provided by the validated snapshot. Deleted/unavailable source items do not get reconstructed.
+- Real authenticated Windows ChatGPT connectivity could not be tested because no supported standalone interface or access to your Windows account was available. GitHub Actions runs synthetic-file regression on a Windows runner; this does not test your installed machine.
+- Prior Windows runtime items #20–#23 are tracked independently and are **not** declared passed by the v0.6 regression suite.
