@@ -1,0 +1,40 @@
+{
+  "schema": "codex-session-canvas.chatgpt-metadata",
+  "version": 1,
+  "exportedAt": "2026-11-24T12:00:00Z",
+  "scope": "user-provided-metadata",
+  "pages": [
+    {
+      "page": 1,
+      "complete": false,
+      "projects": [
+        {
+          "id": "example-ai-skills-agents",
+          "title": "AI-Skills/Agents"
+        }
+      ],
+      "conversations": [
+        {
+          "id": "example-cloud-chat-1",
+          "projectId": "example-ai-skills-agents",
+          "title": "Architecture discussion",
+          "archived": false
+        },
+        {
+          "id": "example-cloud-chat-2",
+          "projectId": "example-ai-skills-agents",
+          "title": "Next steps"
+        }
+      ],
+      "relationships": [
+        {
+          "from": "example-cloud-chat-1",
+          "to": "example-cloud-chat-2",
+          "type": "reference",
+          "evidence": "user-confirmed",
+          "provenance": "example-only"
+        }
+      ]
+    }
+  ]
+}

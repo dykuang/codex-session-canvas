@@ -63,6 +63,7 @@ def validate_registry(raw: object) -> dict:
     ids: set[str] = set()
     folders_seen: dict[str, str] = {}
     clean_projects = []
+    cloud_ids = set()
     for item in projects:
         if not isinstance(item, dict):
             raise RegistryError("Project must be an object")
@@ -85,7 +86,16 @@ def validate_registry(raw: object) -> dict:
                 raise RegistryError(f"Folder {folder!r} is already assigned to {folders_seen[key]}")
             folders_seen[key] = pid
             clean_folders.append(folder)
-        clean_projects.append({"id": pid, "name": name.strip(), "folders": clean_folders})
+        cloud_id = item.get("chatgptProjectId")
+        if cloud_id is not None:
+            if (not isinstance(cloud_id, str) or not 1 <= len(cloud_id) <= 200 or
+                    not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:/-]*", cloud_id) or cloud_id in cloud_ids):
+                raise RegistryError("Duplicate or invalid chatgptProjectId")
+            cloud_ids.add(cloud_id)
+        project = {"id": pid, "name": name.strip(), "folders": clean_folders}
+        if cloud_id is not None:
+            project["chatgptProjectId"] = cloud_id
+        clean_projects.append(project)
     clean_edges = []
     seen_edges: set[tuple[str, str]] = set()
     graph: dict[str, list[str]] = {pid: [] for pid in ids}
